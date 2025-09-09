@@ -833,7 +833,7 @@ function measureQubit(psi, n, target) {
 function onRun(){
   initState(nQ);
   let psi = stateVec.slice();
-  resultsDiv.ineerHTML ="";
+
   for (const g of gateSequence){
     if (g.type in GATES){
       psi = applySingleQubitGate(psi, nQ, g.params[0], GATES[g.type]);
@@ -842,8 +842,7 @@ function onRun(){
        // Example: measure qubit 0
       const { outcome, newPsi } = measureQubit(psi, nQ, target);
       psi = newPsi;   // update state vector
-      const measureResult = `<div>Measurement outcome for qubit ${target}: ${outcome}</div>`;
-      resultsDiv.innerHTML += measureResult;
+      console.log(`Measurement outcome for qubit ${target}:`, outcome);
     }
     else if (g.type === 'Rx'){
       psi = applySingleQubitGate(psi, nQ, g.params[0], Rx(g.angle));
@@ -878,6 +877,7 @@ function onRun(){
 
 // ---------- Display & plotting ----------
 function displayResults(psi, rho, reducedList){
+  resultsDiv.innerHTML = '';
   const dim = psi.length;
   let s = "<div class='result-block'><h3>Final state amplitudes (nonzero)</h3>";
   for (let i=0;i<dim;i++){
@@ -891,7 +891,7 @@ function displayResults(psi, rho, reducedList){
 
   s += "<div class='result-block'><h3>Full density matrix ρ</h3>";
   if(rho.length <= 3&& rho[0].length <=3) {
-    s += `<div style ="overflow:auto; max-width:100%; max-height: 400px;"><b>$$${formatComplexMatrix(rho)}$$</b></div>`;
+    s += `<div style ="overflow:auto; max-width:100%; max-height: 400px;"><b>$$${formatComplexMatrix(rho)}$$</b><div>`;
   }
   else {
     s += `<div style ="overflow:auto; max-width:100%; max-height: 400px;"><b>${formatMatrixHTML(rho)}</b></div>`;
@@ -911,7 +911,7 @@ function displayResults(psi, rho, reducedList){
     s += "</div>";
   }
 
-  resultsDiv.innerHTML += s;
+  resultsDiv.innerHTML = s;
   if(window.MathJax){
     MathJax.typesetPromise();
   }
@@ -1126,10 +1126,5 @@ document.getElementById("cRun").addEventListener("click", async () => {
   }
 });
  
-
-
-
-
-
 
 
