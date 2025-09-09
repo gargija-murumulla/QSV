@@ -891,7 +891,7 @@ function displayResults(psi, rho, reducedList){
 
   s += "<div class='result-block'><h3>Full density matrix ρ</h3>";
   if(rho.length <= 3&& rho[0].length <=3) {
-    s += `<div style ="overflow:auto; max-width:100%; max-height: 400px;"><b>$$${formatComplexMatrix(rho)}$$</b><div>`;
+    s += `<div style ="overflow:auto; max-width:100%; max-height: 400px;"><b>$$${formatComplexMatrix(rho)}$$</b></div>`;
   }
   else {
     s += `<div style ="overflow:auto; max-width:100%; max-height: 400px;"><b>${formatMatrixHTML(rho)}</b></div>`;
@@ -1126,6 +1126,7 @@ document.getElementById("cRun").addEventListener("click", async () => {
   }
 });
  
+
 
 
 
