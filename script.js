@@ -880,13 +880,14 @@ function displayResults(psi, rho, reducedList){
   resultsDiv.innerHTML = '';
   const dim = psi.length;
   let s = "<div class='result-block'><h3>Final state amplitudes (nonzero)</h3>";
-  for (let i=0;i<dim;i++){
-    const mag = Math.hypot(cre(psi[i]), cim(psi[i]));
-    if (mag > 1e-9){
-      const amp = `${cre(psi[i]).toFixed(3)}${cim(psi[i])>=0?'+':'-'}${Math.abs(cim(psi[i])).toFixed(3)}j`;
-      s += `<div>\\(|${i.toString(3).padStart(nQ,'0')}> : ${amp}\\)</div>`;
-    }
+  for (let i = 0; i < dim; i++) {
+  const mag = Math.hypot(cre(psi[i]), cim(psi[i]));
+  if (mag > 1e-9) {
+    const amp = `${cre(psi[i]).toFixed(3)}${cim(psi[i]) >= 0 ? '+' : '-'}${Math.abs(cim(psi[i])).toFixed(3)}j`;
+    s += `<div>\\(|${i.toString(2).padStart(nQ,'0')}> : ${amp}\\)</div>`;
   }
+}
+
   s += "</div>";
 
   s += "<div class='result-block'><h3>Full density matrix ρ</h3>";
@@ -1126,5 +1127,6 @@ document.getElementById("cRun").addEventListener("click", async () => {
   }
 });
  
+
 
 
