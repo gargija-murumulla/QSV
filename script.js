@@ -833,7 +833,7 @@ function measureQubit(psi, n, target) {
 function onRun(){
   initState(nQ);
   let psi = stateVec.slice();
-  resultssDiv.ineerHTML ="";
+  resultsDiv.ineerHTML ="";
   for (const g of gateSequence){
     if (g.type in GATES){
       psi = applySingleQubitGate(psi, nQ, g.params[0], GATES[g.type]);
@@ -1126,6 +1126,7 @@ document.getElementById("cRun").addEventListener("click", async () => {
   }
 });
  
+
 
 
 
