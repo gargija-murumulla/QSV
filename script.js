@@ -97,14 +97,16 @@ onGateTypeChange();
 
 // ---------- Functions ----------
 blochSpheresDiv.innerHTML = "<div class = grid > <b><h2 style= text-align:'centre'>Qubit</h2></b> <p>The fundemental unit of quantum information, serving as the quantum equvivalent of a classical computer's bit. A qubit can have states 0, 1, 0/1(superposition). </p></div>"
-    
+
 let firstQubit = false;
 function onSet(){
   nQ = parseInt(numQInput.value);
   if (!(nQ >=1 && nQ <=5)) { alert("Choose n between 1 and 5"); return; }
   populateBasis(nQ);
   populateQubitSelectors(nQ);
-  initState(nQ);
+  const initIndex = 0;
+  initStates = getInitStates(initIndex, nQ);
+  console.log("👉 Default initial state:", initStates);
   afterSet.classList.remove('hidden');
   gateSequence = [];
   renderGateList();
@@ -139,13 +141,23 @@ function populateQubitSelectors(n){
     sels.forEach(s => s.appendChild(opt()));
   }
 }
-
-function initState(n){
-  const dim = 1<<n;
-  stateVec = Array(dim).fill(0).map(()=>c(0,0));
+let initStates =[];
+function initState(nQ){
+  const dim = 1<<nQ;
   const initIndex = parseInt(basisSelect.value || "0", 2);
+  stateVec = Array(dim).fill(0).map(()=>c(0,0));
   stateVec[initIndex] = c(1,0);
+  initStates = getInitStates(initIndex,nQ);
 }
+
+function getInitStates(initIndex,nQ) {
+  const initStates =[];
+  for (let i = nQ - 1; i >= 0; i--) {
+    initStates.push((initIndex >> i) & 1);
+  }
+  return initStates;
+}
+
 
 function onGateTypeChange(){
   const type = gateType.value;
@@ -1103,13 +1115,21 @@ function plotBloch(containerId, bloch, q) {
   };
   Plotly.newPlot(containerId,traces,layout,{displayModeBar : false});
 }
+basisSelect.addEventListener("change", () => {
+  const initIndex = parseInt(basisSelect.value, 2);
+  initStates = getInitStates(initIndex, nQ);
+  console.log("👉 Updated initial states:", initStates);
+});
+
 document.getElementById("cRun").addEventListener("click", async () => {
   // Build payload from your gates list
   const payload = {
     numQubits: nQ,      // number of qubits from your frontend
-    gates: gateSequence // your array of gate objects
+    gates: gateSequence, // your array of gate objects
+    initialStates : initStates // initial states if any
   };
-
+  
+console.log("👉 Sending to backend:", payload);
   try {
     const res = await fetch("https://qsv-3xax.onrender.com/run", {
       method: "POST",
