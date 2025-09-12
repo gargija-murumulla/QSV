@@ -22,11 +22,20 @@ class Gate(BaseModel):
 class CircuitRequest(BaseModel):
     numQubits: int
     gates: list[Gate]
+    initialStates: list[int] | None = None
 
 def build_circuit(data: CircuitRequest):
     n = data.numQubits
     qc = QuantumCircuit(n, n)
-
+    if len(data.initialStates) < n:
+        # Pad with 0s
+        raise ValueError("less states")
+    elif len(data.initialStates) > n:
+        raise ValueError("Too many initialStates for given numQubits")
+    if data.initialStates:
+        for idx, state in enumerate(data.initialStates):
+            if int(state) == 1:
+                qc.x(idx)
     for gate in data.gates:
         g, p, a = gate.type, gate.params, gate.angle
         if g == "X": qc.x(p[0])
