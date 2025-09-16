@@ -561,7 +561,7 @@ if (g.type === "CZ") {
 
       if (["X","Y","Z","H","S","T","Sdg","Tdg","Rx","Ry","Rz","Phase"].includes(g.type)) {
         isTarget = (q === g.params[0]);
-      } else if (["CNOT", "CZ"].includes(g.type)) {
+      } else if (["CNOT", "CZ","SWAP"].includes(g.type)) {
         isTarget = (q === g.params[0] || q === g.params[1]);
       } else if (g.type === "CCNOT") {
         isTarget = (q === g.params[0] || q === g.params[1] || q === g.params[2]);
@@ -1147,6 +1147,7 @@ console.log("👉 Sending to backend:", payload);
   }
 });
  
+
 
 
 
