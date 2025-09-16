@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 from qiskit.qasm2 import dumps
-
+from typing import Tuple, Dict
+from qiskit.quantum_info import DensityMatrix, partial_trace
+import numpy as np
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -23,7 +25,6 @@ class CircuitRequest(BaseModel):
     numQubits: int
     gates: list[Gate]
     initialStates: list[int] | None = None
-
 def build_circuit(data: CircuitRequest):
     n = data.numQubits
     qc = QuantumCircuit(n, n)
@@ -66,7 +67,6 @@ def home():
 @app.post("/run")
 def run_circuit(request: CircuitRequest):
     qc = build_circuit(request)
-
     backend = AerSimulator()
     job = backend.run(qc, shots=1024)
     result = job.result()
