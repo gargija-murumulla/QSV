@@ -83,7 +83,7 @@ const container = document.getElementById("quantumCircuit");
 let nQ = 2;
 let stateVec = []; // array of math.complex
 let gateSequence = []; // each gate object: {type, params, angle?}
-
+let lastData = null;
 // ---------- Setup handlers ----------
 btnSet.addEventListener('click', onSet);
 gateType.addEventListener('change', onGateTypeChange);
@@ -94,14 +94,50 @@ btnRun.addEventListener('click', onRun);
 
 // initialize UI
 onGateTypeChange();
-
+let histogramChart = null;
+let targetQubit = null;
 // ---------- Functions ----------
 blochSpheresDiv.innerHTML = "<div class = grid > <b><h2 style= text-align:'centre'>Qubit</h2></b> <p>The fundemental unit of quantum information, serving as the quantum equvivalent of a classical computer's bit. A qubit can have states 0, 1, 0/1(superposition). </p></div>"
+function drawHistogram(counts) {
+    const labels = Object.keys(counts);
+    const values = Object.values(counts);
+    const ctx = document.getElementById('histogram').getContext('2d', { willReadFrequently: true });
+
+    if (histogramChart) {
+      histogramChart.data.labels = labels;
+        histogramChart.data.datasets[0].data = values;
+        histogramChart.update();
+    }
+    histogramChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Measurement Counts',
+                data: values,
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                x: {
+                    title: { display: true, text: 'Bitstring Outcome' }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Counts' }
+                }
+            }
+        }
+    });
+}
 
 let firstQubit = false;
 function onSet(){
   nQ = parseInt(numQInput.value);
-  if (!(nQ >=1 && nQ <=5)) { alert("Choose n between 1 and 5"); return; }
+  if ((nQ >=1 && nQ <=5)) { 
   populateBasis(nQ);
   populateQubitSelectors(nQ);
   const initIndex = 0;
@@ -118,6 +154,43 @@ function onSet(){
   blochSpheresDiv.innerHTML = "";
   resultsDiv.innerHTLML = "";
   container.innerHTML = "<h2>Circuit Diagram </h2>";
+  customQubitContainer.classList.add("hidden");
+  btnRun.classList.remove("hidden");
+}
+else{
+  populateBasis(nQ);
+  populateQubitSelectors(nQ);
+  const initIndex = 0;
+  initStates = getInitStates(initIndex, nQ);
+  console.log("👉 Default initial state:", initStates);
+  afterSet.classList.remove('hidden');
+  gateSequence = [];
+  renderGateList();
+  resultsDiv.innerHTML = "<div class='small'>Initial state set. Add gates and click Run.</div>";
+  if(!firstQubit){
+    blochSpheresDiv.innerHTML = "<div class = grid ><p>Tensor  products (&#8855;) are essential for describing subsystems composed of multiple quantum subsystems, where the state of the total system is given by the tensor product of the states of the individual subsystems </p></div>";
+    firstQubit = true;
+  }
+  blochSpheresDiv.innerHTML = "";
+  resultsDiv.innerHTLML = "";
+  container.innerHTML = "<h2>Circuit Diagram </h2>";
+
+  customQubitContainer.classList.remove("hidden");
+  btnRun.classList.add("hidden");
+  const qubitSelect = document.getElementById("qubitSelect");
+  qubitSelect.innerHTML = "";
+  for (let i = 0; i < nQ; i++) {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = "q" + i;
+    if(i===0){
+      opt.selected = true;
+    }
+    qubitSelect.appendChild(opt);
+  }
+  
+
+}
 }
 function populateBasis(n){
   basisSelect.innerHTML = "";
@@ -148,6 +221,146 @@ function initState(nQ){
   stateVec = Array(dim).fill(0).map(()=>c(0,0));
   stateVec[initIndex] = c(1,0);
   initStates = getInitStates(initIndex,nQ);
+}
+
+function plotQSphere(divId, stateVec) {
+  const nQ = Math.log2(stateVec.length);
+  const spikeTraces = [];
+  const tipTraces = [];
+  const latitudeTraces = [];
+  const labelX = [];
+  const labelY = [];
+  const labelZ = [];
+  const labelText = [];
+
+  const coords = [];
+  const phases = [];
+  const probs = [];
+  const arcTraces = [];
+
+  // --- Compute spike positions ---
+  for (let i = 0; i < stateVec.length; i++) {
+    const amp = stateVec[i];
+    const re = amp.re, im = amp.im;
+    const prob = re*re + im*im;
+    const phase = Math.atan2(im, re);
+    const weightStr = i.toString(2).padStart(nQ,'0');
+
+    // --- evenly distribute states on sphere ---
+    const hamming = weightStr.split('').filter(q => q==='1').length;
+    const theta = (hamming / nQ) * Math.PI;           // latitude by Hamming weight
+    const phi = 2 * Math.PI * i / stateVec.length;   // evenly around longitude
+
+    const r = 1.0;
+    const x = r * Math.sin(theta) * Math.cos(phi);
+    const y = r * Math.sin(theta) * Math.sin(phi);
+    const z = r * Math.cos(theta);
+
+    coords.push([x, y, z]);
+    phases.push(phase);
+    probs.push(prob);
+
+    labelX.push(x);
+    labelY.push(y);
+    labelZ.push(z);
+    labelText.push(`|${weightStr}⟩`);
+
+    // radial line
+    spikeTraces.push({
+      type:"scatter3d",
+      mode:"lines",
+      x:[0, x], y:[0, y], z:[0, z],
+      line:{color:`hsl(${(phase*180/Math.PI+360)%360},80%,50%)`, width:1 + 8*prob},
+      opacity:0.8,
+      hoverinfo:"skip",
+      showlegend : false
+    });
+
+    // tip marker for hover text
+    tipTraces.push({
+      type: "scatter3d",
+      mode: "markers",
+      x: [x], y: [y], z: [z],
+      marker: {size: 5 + 20*prob, color:`hsl(${(phase*180/Math.PI+360)%360},80%,40%)`},
+      text: `|${weightStr}⟩<br>amp=${re.toFixed(2)} + ${im.toFixed(2)}i<br>P=${prob.toFixed(2)}<br>phase=${phase.toFixed(2)}`,
+      hoverinfo: "text",
+      showlegend : false
+    });
+  }
+  // --- Latitude circles ---
+  const SPHERE_POINTS = 60;
+  for (let k = 0; k <= nQ; k++) {
+    const theta = (k / nQ) * Math.PI;
+    const latX = [], latY = [], latZ = [];
+    for (let p = 0; p <= SPHERE_POINTS; p++) {
+      const phi = (p / SPHERE_POINTS) * 2 * Math.PI;
+      latX.push(Math.sin(theta)*Math.cos(phi));
+      latY.push(Math.sin(theta)*Math.sin(phi));
+      latZ.push(Math.cos(theta));
+    }
+    latitudeTraces.push({
+      type:"scatter3d",
+      mode:"lines",
+      x:latX, y:latY, z:latZ,
+      line:{color:"gray", width:1},
+      opacity:0.2,
+      hoverinfo:"skip",
+      showlegend:false
+    });
+  }
+
+  // --- Transparent sphere ---
+  const U = 30, V = 30;
+  const xs = [], ys = [], zs = [];
+  for (let i = 0; i <= U; i++) {
+    const theta = Math.PI * i / U;
+    const rowX = [], rowY = [], rowZ = [];
+    for (let j = 0; j <= V; j++) {
+      const phi = 2*Math.PI*j/V;
+      rowX.push(Math.sin(theta)*Math.cos(phi));
+      rowY.push(Math.sin(theta)*Math.sin(phi));
+      rowZ.push(Math.cos(theta));
+    }
+    xs.push(rowX); ys.push(rowY); zs.push(rowZ);
+  }
+
+  const sphereSurface = {
+    type:'surface', x:xs, y:ys, z:zs,
+    opacity:0.2,
+    colorscale:[[0,'rgba(228,246,253,0.87)'], [1,'rgba(248,200,244,0.5)']],
+    showscale:false,
+    contours: {
+      x: { show: true, color: "#5a56568a", width: 20 },
+      y: { show: true, color: "#5a565680", width: 20},
+      z: { show: true, color: "#5a565685", width:20 }
+    },
+    hoverinfo:'skip',
+    showlegend:false
+  };
+
+  const labelTraces = {
+    type:"scatter3d",
+    mode:"text",
+    x:labelX, y:labelY, z:labelZ,
+    text:labelText,
+    textposition:"top center",
+    textfont:{size:12, color:"#333333"},
+    hoverinfo:"skip",
+    showlegend:false
+  };
+  const layout = {
+    title:"Q-Sphere <br> size(Dot)-> probability<br> color(Dot)->Phase",
+    margin:{l:0,r:0,b:0,t:30},
+    scene:{
+      aspectmode:'cube',
+      xaxis:{range:[-1.3,1.3],showgrid:false,zeroline:false,showticklabels:false,visible:false},
+      yaxis:{range:[-1.3,1.3],showgrid:false,zeroline:false,showticklabels:false,visible:false},
+      zaxis:{range:[-1.3,1.3],showgrid:false,zeroline:false,showticklabels:false,visible:false},
+      camera:{eye:{x:0.8,y:0.8,z:0.8}}
+    },
+  };
+
+  Plotly.newPlot(divId, [sphereSurface, ...latitudeTraces, ...spikeTraces, ...tipTraces, labelTraces], layout);
 }
 
 function getInitStates(initIndex,nQ) {
@@ -561,14 +774,15 @@ if (g.type === "CZ") {
 
       if (["X","Y","Z","H","S","T","Sdg","Tdg","Rx","Ry","Rz","Phase"].includes(g.type)) {
         isTarget = (q === g.params[0]);
-      } else if (["CNOT", "CZ","SWAP"].includes(g.type)) {
+      } else if (["CNOT", "CZ"].includes(g.type)) {
         isTarget = (q === g.params[0] || q === g.params[1]);
       } else if (g.type === "CCNOT") {
         isTarget = (q === g.params[0] || q === g.params[1] || q === g.params[2]);
       } else if (g.type === "MEASURE") {
         isTarget = (q === g.params[0]);
+      }else if (g.type === "SWAP"){
+        isTarget = (q === g.params[0] || q === g.params[1]);
       }
-
       if (!isTarget) {
         const y = 30 + q * qheight;
         const rect = document.createElementNS(svgNS, "rect");
@@ -844,47 +1058,53 @@ function measureQubit(psi, n, target) {
 // ---------- Run simulation ----------
 function onRun(){
   initState(nQ);
-  let psi = stateVec.slice();
+    if(nQ<=5){
+    let psi = stateVec.slice();
 
-  for (const g of gateSequence){
-    if (g.type in GATES){
-      psi = applySingleQubitGate(psi, nQ, g.params[0], GATES[g.type]);
-    }else if(g.type === 'MEASURE'){
-      const target = g.params[0];
-       // Example: measure qubit 0
-      const { outcome, newPsi } = measureQubit(psi, nQ, target);
-      psi = newPsi;   // update state vector
-      console.log(`Measurement outcome for qubit ${target}:`, outcome);
+    for (const g of gateSequence){
+      if (g.type in GATES){
+        psi = applySingleQubitGate(psi, nQ, g.params[0], GATES[g.type]);
+      }else if(g.type === 'MEASURE'){
+        const target = g.params[0];
+         // Example: measure qubit 0
+        const { outcome, newPsi } = measureQubit(psi, nQ, target);
+        psi = newPsi;   // update state vector
+        console.log(`Measurement outcome for qubit ${target}:`, outcome);
+      }
+      else if (g.type === 'Rx'){
+        psi = applySingleQubitGate(psi, nQ, g.params[0], Rx(g.angle));
+      } else if (g.type === 'Ry'){
+        psi = applySingleQubitGate(psi, nQ, g.params[0], Ry(g.angle));
+      } else if (g.type === 'Rz'){
+        psi = applySingleQubitGate(psi, nQ, g.params[0], Rz(g.angle));
+      } else if (g.type === 'Phase'){
+        psi = applySingleQubitGate(psi, nQ, g.params[0], Phase(g.angle));
+      } else if (g.type === 'CNOT'){
+        psi = applyCNOT(psi, nQ, g.params[0], g.params[1]);
+      } else if (g.type === 'CZ'){
+        psi = applyCZ(psi, nQ, g.params[0], g.params[1]);
+      } else if (g.type === 'SWAP'){
+        psi = applySWAP(psi, nQ, g.params[0], g.params[1]);
+      } else if (g.type === 'CCNOT'){
+        psi = applyCCNOT(psi, nQ, g.params[0], g.params[1], g.params[2]);
+      }
     }
-    else if (g.type === 'Rx'){
-      psi = applySingleQubitGate(psi, nQ, g.params[0], Rx(g.angle));
-    } else if (g.type === 'Ry'){
-      psi = applySingleQubitGate(psi, nQ, g.params[0], Ry(g.angle));
-    } else if (g.type === 'Rz'){
-      psi = applySingleQubitGate(psi, nQ, g.params[0], Rz(g.angle));
-    } else if (g.type === 'Phase'){
-      psi = applySingleQubitGate(psi, nQ, g.params[0], Phase(g.angle));
-    } else if (g.type === 'CNOT'){
-      psi = applyCNOT(psi, nQ, g.params[0], g.params[1]);
-    } else if (g.type === 'CZ'){
-      psi = applyCZ(psi, nQ, g.params[0], g.params[1]);
-    } else if (g.type === 'SWAP'){
-      psi = applySWAP(psi, nQ, g.params[0], g.params[1]);
-    } else if (g.type === 'CCNOT'){
-      psi = applyCCNOT(psi, nQ, g.params[0], g.params[1], g.params[2]);
+    qsphereDiv.classList.remove("hidden");
+    stateVec = psi;
+    plotQSphere("qsphereDiv", stateVec);
+    const rho = outerProduct(stateVec);
+    const reducedList = [];
+    for (let q=0; q<nQ; q++){
+      const red = partialTrace(rho, nQ, q);
+      reducedList.push(red);
     }
-  }
-  stateVec = psi;
 
-  const rho = outerProduct(stateVec);
-  const reducedList = [];
-  for (let q=0; q<nQ; q++){
-    const red = partialTrace(rho, nQ, q);
-    reducedList.push(red);
+    displayResults(stateVec, rho, reducedList);
+    drawAllBloch(reducedList);
   }
-
-  displayResults(stateVec, rho, reducedList);
-  drawAllBloch(reducedList);
+  else{
+    alert("for more than 5 qubits we use tomography ");
+  }
 }
 
 // ---------- Display & plotting ----------
@@ -929,27 +1149,51 @@ function displayResults(psi, rho, reducedList){
     MathJax.typesetPromise();
   }
 }
+function toComplex(c) {
+  if (c && typeof c === "object" && "real" in c && "imag" in c) {
+    return math.complex(c.real, c.imag);
+  }
+  return c; // already a math.js complex or number
+}
 
-function formatComplexMatrix(mat){
+function formatComplexMatrix(mat) {
   let latex = "\\begin{bmatrix}\n";
   latex += mat.map(
-    row => row.map(
-      c => `${cre(c).toFixed(3)}${cim(c) >= 0 ? '+' : ''}${cim(c).toFixed(3)}i`
-    ).join(" & ")
+    row => row.map(c => {
+      const cc = toComplex(c);
+      return `${cc.re.toFixed(3)}${cc.im >= 0 ? '+' : ''}${cc.im.toFixed(3)}i`;
+    }).join(" & ")
   ).join(" \\\\\n");
   latex += "\n\\end{bmatrix}";
   return latex;  
 }
 function formatMatrixHTML(mat, threshold = 1e-6) {
+  if (!mat || !Array.isArray(mat)) {
+    return "<i>Invalid matrix</i>";
+  }
+
   return `<table border="1" style="border-collapse: collapse; font-family: monospace;">` +
     mat.map(row => 
       `<tr>` + row.map(c => {
-        let val = (Math.hypot(cre(c), cim(c)) < threshold)? "0":`${cre(c).toFixed(2)}${cim(c)>=0?'+':''}${cim(c).toFixed(2)}i`;
-         return `<td style = "text-align : center; width : 80px; padding : 2px;">${val}</td>`;
-        }).join('') + `</tr>`
+        const cc = toComplex(c); // ✅ ensure proper math.js complex
+        let val = (Math.hypot(cc.re, cc.im) < threshold)
+          ? "0"
+          : `${cc.re.toFixed(2)}${cc.im >= 0 ? '+' : ''}${cc.im.toFixed(2)}i`;
+        return `<td style="text-align:center; width:80px; padding:2px;">${val}</td>`;
+      }).join('') + `</tr>`
     ).join('') +
   `</table>`;
 }
+function formatComplex(entry, digits = 3) {
+  const re = Number(entry.re).toFixed(digits);
+  const im = Number(entry.im).toFixed(digits);
+  return `${re}${im >= 0 ? " + " : " - "}${Math.abs(im)}i`;
+}
+
+function formatReal(entry, digits = 3) {
+  return Number(entry.re).toFixed(digits);
+}
+
 function qubitEntropy(x, y, z) {
   // Length of the Bloch vector
   const r = Math.sqrt(x * x + y * y + z * z);
@@ -959,13 +1203,17 @@ function qubitEntropy(x, y, z) {
   const lambda2 = (1 - r) / 2;
 
   // Helper for safe log base 2 (avoids log(0) issues)
-  function log2Safe(val) {
-    return val > 0 ? Math.log(val) / Math.log(2) : 0;
-  }
 
   // Von Neumann entropy
   const S = -(lambda1 * log2Safe(lambda1) + lambda2 * log2Safe(lambda2));
   return S;
+}
+function log2Safe(val) {
+  return val > 0 ? Math.log(val) / Math.log(2) : 0;
+}
+function roundVal(val, digits=3) {
+  const num = Number(val.toFixed(digits));
+  return Math.abs(num) < 1e-12 ? 0 : num;
 }
 
 function drawAllBloch(reducedList) {
@@ -988,12 +1236,12 @@ function drawAllBloch(reducedList) {
     const x = bloc.x.toFixed(6);
     const y = bloc.y.toFixed(6);
     const z = bloc.z.toFixed(6);
-    const e = qubitEntropy(x,y,z).toFixed(3);
+    const e =cleanFixed(qubitEntropy(x,y,z).toFixed(3));
     props.innerHTML = `
       <h3>Qubit ${q}</h3>
       <p>Bloch vector:(${bloc.x.toFixed(3)}, ${bloc.y.toFixed(3)}, ${bloc.z.toFixed(3)})</p>
       <p>Entropy(mixedness): ${e}</p>
-      <p>Purity: ${(1 + x * x + y * y + z * z) / 2}</p>
+      <p>Purity: ${((1 + x * x + y * y + z * z) / 2).toFixed(3)}</p>
       <p>Measurement probabilities(|0>,|1>): ${reducedList[q][0][0]}, ${reducedList[q][1][1]} </p>
     `;
     wrapper.appendChild(props);
@@ -1115,39 +1363,124 @@ function plotBloch(containerId, bloch, q) {
   };
   Plotly.newPlot(containerId,traces,layout,{displayModeBar : false});
 }
+function cleanFixed(val, digits = 3) {
+  const num = Number(val);              // force conversion to number
+  const rounded = Number(num.toFixed(digits));
+  return rounded === 0 ? 0 : rounded;   // remove negative zero
+}
+
+
+document.getElementById("qubitSelect").addEventListener("change", (e) => {
+  const q = parseInt(e.target.value);
+  showQubitInfo(q);
+});
 basisSelect.addEventListener("change", () => {
   const initIndex = parseInt(basisSelect.value, 2);
   initStates = getInitStates(initIndex, nQ);
   console.log("👉 Updated initial states:", initStates);
 });
-
 document.getElementById("cRun").addEventListener("click", async () => {
   // Build payload from your gates list
-  const payload = {
-    numQubits: nQ,      // number of qubits from your frontend
-    gates: gateSequence, // your array of gate objects
-    initialStates : initStates // initial states if any
-  };
   
-console.log("👉 Sending to backend:", payload);
   try {
-    const res = await fetch("https://qsv-3xax.onrender.com/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    
+    if(nQ<6){
+      const payload = {
+        numQubits: nQ,      // number of qubits from your frontend
+        gates: gateSequence, // your array of gate objects
+        initialStates : initStates, // initial states if any
+      };
 
-    const data = await res.json();
-    document.getElementById("backendResults").textContent =
-      "Backend Counts:\n" + JSON.stringify(data.counts, null, 2) +
-      "\n\nQASM:\n" + data.qasm;
-  } catch (err) {
-    console.error(err);
-    document.getElementById("backendResults").textContent = "Error: " + err;
+      console.log("👉 Sending to backend:", payload);
+      const res = await fetch("http://127.0.0.1:8000/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      document.getElementById("backendResults").textContent =
+        "Backend Counts:\n" + JSON.stringify(data.counts, null, 2) +
+        "\n\nQASM:\n" + data.qasm;
+      drawHistogram(data.counts);
+    }
+    else{
+      alert("we used single qubit Quantum State tomography for qubits more than 5. The results may have some eroor due to little noise ");
+      targetQubit = parseInt(document.getElementById("qubitSelect").value);
+      if (isNaN(targetQubit)) {
+        alert("Please select a valid target qubit!");
+        return;
+      }
+      console.log(targetQubit);
+      const payload = {
+        numQubits: nQ,      // number of qubits from your frontend
+        gates: gateSequence, // your array of gate objects
+        initialStates : initStates, // initial states if any
+        targetQubit: targetQubit 
+      };
+  
+      console.log("👉 Sending to backend:", payload);
+      const res = await fetch("http://127.0.0.1:8000/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      
+      console.log(document.getElementById("qubitSelect").innerHTML);
+      console.log("👉 Backend returned:", data);
+      // show first qubit immediately
+
+      let x = roundVal(data.blochs.x,3);
+      let y = roundVal(data.blochs.y,3);
+      let z = roundVal(data.blochs.z,3);
+      document.getElementById("backendResults").textContent =
+        `Bloch : (${x}, ${y}, ${z})`+
+        "\n\nRhos:\n" + formatComplexMatrix(data.rho);
+      MathJax.typeset();
+      const wrapper = document.createElement('div');
+      wrapper.className = 'bloch-wrapper';
+
+      // Bloch sphere div
+      const block = document.createElement('div');
+      block.id = 'bloch_' + targetQubit;
+      block.className = 'bloch-canvas';
+      wrapper.appendChild(block);
+      // Properties div
+      const props = document.createElement('div');
+      props.className = 'bloch-properties';
+      const e = cleanFixed(qubitEntropy(x,y,z).toFixed(3));
+      props.innerHTML = `
+        <h3>Qubit ${targetQubit}</h3>
+        <p>Bloch vector:(${x}, ${y}, ${z})</p>
+        <p>Entropy(mixedness): ${e}</p>
+        <p>Purity: ${(1 + x * x + y * y + z * z) / 2}</p>
+        <p>Measurement probabilities(|0>,|1>): 
+           ${formatReal(data.rho[0][0], 3)}, 
+           ${formatReal(data.rho[1][1], 3)}
+        </p>
+      `;
+      wrapper.appendChild(props);
+
+      // Add wrapper into output panel
+      blochSpheresDiv.appendChild(wrapper);
+      x = data.blochs.x.toFixed(3);
+      y = data.blochs.y.toFixed(3);
+      z = data.blochs.z.toFixed(3);
+        // Draw the Bloch sphere
+      const r = Math.sqrt(x**2 + y**2 + z**2);
+      if(r< 1e-6){
+        plotBloch(block.id, {x:0,y:0,z:0}, targetQubit,true);
+      }
+      plotBloch(block.id,{x,y,z},targetQubit,true);
+    }
+
+  }
+  catch (err) {
+      console.error(err);
+      document.getElementById("backendResults").textContent = "Error: " + err;
   }
 });
- 
-
+   
 
 
 
