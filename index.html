@@ -7,7 +7,12 @@
   <!-- math.js for complex numbers, Plotly for 3D plotting -->
   <script src="https://cdn.jsdelivr.net/npm/mathjs@11/lib/browser/math.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
 
 </head>
 <body>
@@ -16,8 +21,8 @@
 <div class="circuitDisplay">
 
     <div class="controls">
-      <label>Number of qubits (1 - 5):</label>
-      <input id="numQ" type="number" min="1" max="5" value="2" />
+      <label>Number of qubits :</label>
+      <input id="numQ" type="number" min="1" value="2" />
       <button id="btnSet">Set</button>
       <div class="small note">Basis ordering is |q0 q1 … q(n-1)⟩, where q0 is the leftmost bit.</div>
 
@@ -104,7 +109,10 @@
         <div id="gatesList"></div>
 
         <hr />
-
+        <div id="customQubitContainer" class="hidden">
+          <label>qubit to:</label>
+          <select id="qubitSelect"></select>
+        </div>
         <button id="btnRun">Visualize</button>
         <button id="cRun">Run Circuit</button>
         </div>
@@ -120,8 +128,9 @@
   </div>
   <div class="right-panel">
   <div id="quantumCircuit" class ="grid"><h2>circuit diagram</h2></div>
-  
+  <div id="qsphereDiv" style="width:600px;height:600px;" class ="hidden"></div>
   <div id="blochSpheres" class="grid"></div>
+  <canvas id="histogram"></canvas>
   </div>
 </div>
   <script src="script.js">
