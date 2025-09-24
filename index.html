@@ -7,9 +7,8 @@
   <!-- math.js for complex numbers, Plotly for 3D plotting -->
   <script src="https://cdn.jsdelivr.net/npm/mathjs@11/lib/browser/math.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 
@@ -119,8 +118,10 @@
     </div>
 
     <hr />
-    
-  <div id="results"></div>
+  
+    <canvas id="stateBarChart" class = "hidden"></canvas>
+  <div id="results">
+  </div>
   <div id="backendResults" style="white-space: pre-wrap; margin-top: 20px; border: 1px solid #ccc; padding: 10px;"></div>
   
   <div id="loading" class="loading-spinner" style="display:none;"></div>
