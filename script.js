@@ -1423,7 +1423,7 @@ basisSelect.addEventListener("change", () => {
 });
 document.getElementById("cRun").addEventListener("click", async () => {
   // Build payload from your gates list
-  
+  alert("The run circuits results follow the reverse order(default qiskit order) i.e., qn-1, qn-2....q0");
   try {
     
     if(nQ<6){
@@ -1523,6 +1523,7 @@ document.getElementById("cRun").addEventListener("click", async () => {
   }
 });
    
+
 
 
 
