@@ -156,6 +156,7 @@ function onSet(){
   container.innerHTML = "<h2>Circuit Diagram </h2>";
   customQubitContainer.classList.add("hidden");
   btnRun.classList.remove("hidden");
+  stateBarChart.classList.add("hidden");
 }
 else{
   populateBasis(nQ);
@@ -1106,9 +1107,50 @@ function onRun(){
     alert("for more than 5 qubits we use tomography ");
   }
 }
+function drawStateBarGraph(stateVec) {
+  // Compute probabilities (magnitude squared)
+  const probs = stateVec.map(a => a.re * a.re + a.im * a.im);
 
+  // Labels as binary states
+  const labels = probs.map((_, i) => i.toString(2).padStart(Math.log2(probs.length), "0"));
+
+  // Destroy old chart if exists
+  if (window.stateChart) {
+    window.stateChart.data.labels = labels;
+    window.stateChart.data.datasets[0].data = probs;
+
+    // call Chart.js update method
+    window.stateChart.update()
+  }
+
+  const ctx = document.getElementById("stateBarChart").getContext("2d");
+  window.stateChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Probability",
+        data: probs,
+        backgroundColor: "rgba(54, 162, 235, 0.7)",
+        borderColor: "rgba(54, 162, 235, 1)",
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 1
+        }
+      }
+    }
+  });
+}
 // ---------- Display & plotting ----------
 function displayResults(psi, rho, reducedList){
+  drawStateBarGraph(stateVec);
+
   resultsDiv.innerHTML = '';
   const dim = psi.length;
   let s = "<div class='result-block'><h3>Final state amplitudes (nonzero)</h3>";
@@ -1121,7 +1163,7 @@ function displayResults(psi, rho, reducedList){
 }
 
   s += "</div>";
-
+  
   s += "<div class='result-block'><h3>Full density matrix ρ</h3>";
   if(rho.length <= 3&& rho[0].length <=3) {
     s += `<div style ="overflow:auto; max-width:100%; max-height: 400px;"><b>$$${formatComplexMatrix(rho)}$$</b><div>`;
@@ -1481,7 +1523,6 @@ document.getElementById("cRun").addEventListener("click", async () => {
   }
 });
    
-
 
 
 
