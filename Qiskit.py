@@ -1,12 +1,23 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from qiskit import QuantumCircuit, transpile
+from qiskit_experiments.framework import ParallelExperiment
+from qiskit_experiments.library import StateTomography
 from qiskit_aer import AerSimulator
 from qiskit.qasm2 import dumps
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List, Optional
 from qiskit.quantum_info import DensityMatrix, partial_trace
 import numpy as np
+
+# Try importing qiskit-experiments (recommended). If not available, we'll fallback.
+try:
+    from qiskit_experiments.library import StateTomography
+    HAS_QISKIT_EXPERIMENTS = True
+except Exception:
+    HAS_QISKIT_EXPERIMENTS = False
+
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +37,7 @@ class CircuitRequest(BaseModel):
     gates: list[Gate]
     initialStates: list[int] | None = None
     targetQubit : int | None = None
+
 def serialize_rho(rho: np.ndarray):
     """Convert a density matrix with complex numbers to JSON-safe format."""
     return [[{"re": float(np.real(val)), "im": float(np.imag(val))} for val in row] for row in rho]
@@ -79,7 +91,7 @@ def _make_meas_circuit_variant(base_qc: QuantumCircuit, target: int, basis: str)
 
 # -------------------- Tomography functions --------------------
 
-def reconstruct_single_qubit_rho(base_qc: QuantumCircuit,
+def reconstruct_single_qubit_rho_manual(base_qc: QuantumCircuit,
                                  target: int,
                                  shots: int = 2048,
                                  backend=None):
@@ -107,38 +119,87 @@ def reconstruct_single_qubit_rho(base_qc: QuantumCircuit,
     x, y, z = exps["X"], exps["Y"], exps["Z"]
     rho = _reconstruct_rho_from_xyz(x, y, z)
     return x, y, z, rho
+def reconstruct_single_qubit_rho_experiments(base_qc: QuantumCircuit,
+                                             target: int,
+                                             shots: int = 8192,
+                                             backend=None) -> Tuple[float, float, float, np.ndarray]:
+    """
+    Use qiskit-experiments StateTomography when available.
+    Returns (x,y,z,rho_numpy_array).
+    """
+    if not HAS_QISKIT_EXPERIMENTS:
+        raise RuntimeError("qiskit-experiments not installed")
 
+    if target is None:
+        raise ValueError("target must be specified for tomography")
 
-def reconstruct_all_qubits(base_qc: QuantumCircuit,
-                           shots: int = 2048,
-                           backend=None):
-    """Reconstruct reduced density matrices for all qubits."""
     n = base_qc.num_qubits
+    if not (0 <= target < n):
+        raise ValueError("Target qubit out of range.")
+
     backend = _ensure_backend(backend)
 
-    circuits, meta = [], []
-    for target in range(n):
-        for basis in ("Z", "X", "Y"):
-            circuits.append(_make_meas_circuit_variant(base_qc, target, basis))
-            meta.append((target, basis))
+    # Build the experiment for tomography on a single qubit (subsystem)
+    tomo = StateTomography(base_qc, measurement_qubits=[target])
 
-    tcirc = transpile(circuits, backend=backend)
-    result = backend.run(tcirc, shots=shots).result()
+    # Run experiment — ExperimentData object is returned
+    exp_data = tomo.run(backend, shots=shots).block_for_results()
 
-    raw_expectations = {q: {} for q in range(n)}
-    for idx, (target, basis) in enumerate(meta):
-        counts = result.get_counts(idx)
-        p0, p1 = _counts_bit_for_qubit(counts, n, target)
-        raw_expectations[target][basis] = _expectation_from_probs(p0, p1)
+    # Try to extract a density matrix from the experiment analysis results.
+    # Different versions of qiskit-experiments expose results differently; try a few reasonable access patterns.
+    rho_np = None
+    try:
+        # pattern 1: query specifically for "state" analysis (works in some releases)
+        ar = exp_data.analysis_results("state")
+        # ar may be a single AnalysisResult or a list; normalize
+        if isinstance(ar, (list, tuple)):
+            ar = ar[0] if len(ar) > 0 else None
+        if ar is not None:
+            # Many AnalysisResult objects store the reconstructed state in `.value`
+            if hasattr(ar, "value") and isinstance(ar.value, (DensityMatrix, np.ndarray)):
+                rho_obj = ar.value
+                rho_np = rho_obj.data if isinstance(rho_obj, DensityMatrix) else np.array(rho_obj)
+    except Exception:
+        rho_np = None
 
-    bloch_list, reduced_rhos = [], []
-    for q in range(n):
-        x, y, z = raw_expectations[q]["X"], raw_expectations[q]["Y"], raw_expectations[q]["Z"]
-        rho = _reconstruct_rho_from_xyz(x, y, z)
-        bloch_list.append({"x": float(x), "y": float(y), "z": float(z)})
-        reduced_rhos.append(rho)
+    # fallback attempt: iterate over all analysis results and try to find a DensityMatrix-like value
+    if rho_np is None:
+        try:
+            for ar in exp_data.analysis_results():
+                # each ar may have .value or .metadata etc.
+                if hasattr(ar, "value") and ar.value is not None:
+                    val = ar.value
+                    if isinstance(val, DensityMatrix):
+                        rho_np = val.data
+                        break
+                    # sometimes value might be a dict with a 'state' field or similar:
+                    if isinstance(val, dict):
+                        # try common keys
+                        for key in ("density_matrix", "state", "rho", "reconstructed_state"):
+                            if key in val:
+                                v = val[key]
+                                if isinstance(v, DensityMatrix):
+                                    rho_np = v.data
+                                    break
+                                elif isinstance(v, (np.ndarray, list)):
+                                    rho_np = np.array(v)
+                                    break
+                        if rho_np is not None:
+                            break
+        except Exception:
+            rho_np = None
 
-    return bloch_list, reduced_rhos, raw_expectations
+    # last fallback: if we still didn't get a matrix, raise up so caller can fallback to manual
+    if rho_np is None:
+        raise RuntimeError("Could not extract reconstructed density matrix from qiskit-experiments result")
+
+    # compute Bloch coordinates from density matrix
+    rho_mat = np.array(rho_np, dtype=complex)
+    x = 2 * np.real(rho_mat[0, 1])
+    y = -2 * np.imag(rho_mat[0, 1])
+    z = np.real(rho_mat[0, 0] - rho_mat[1, 1])
+    return float(x), float(y), float(z), rho_mat
+
 
 def build_circuit(data: CircuitRequest):
     n = data.numQubits
@@ -225,7 +286,22 @@ def run_circuit(request: CircuitRequest):
     else:
         qc = build_circuit(request)
         backend = AerSimulator()
-        x,y,z, rho = reconstruct_single_qubit_rho(qc, target = request.targetQubit,shots=8192)
+            # Preferred path: qiskit-experiments
+        try:
+            if HAS_QISKIT_EXPERIMENTS:
+                x, y, z, rho = reconstruct_single_qubit_rho_experiments(qc, target=request.targetQubit,
+                                                                        shots=8192, backend=backend)
+            else:
+                # fallback to manual tomography if qiskit-experiments not present
+                x, y, z, rho = reconstruct_single_qubit_rho_manual(qc, target=request.targetQubit,
+                                                                shots=8192, backend=backend)
+        except Exception as e:
+            # As a robust fallback: try manual approach if experiments path failed
+            try:
+                x, y, z, rho = reconstruct_single_qubit_rho_manual(qc, target=request.targetQubit,
+                                                                shots=8192, backend=backend)
+            except Exception as e2:
+                raise HTTPException(status_code=500, detail=f"Tomography failed: {str(e)} | fallback failed: {str(e2)}")
         clean_rho, bloch = clean_rho_and_bloch(rho)
         return{
         "blochs": bloch,
