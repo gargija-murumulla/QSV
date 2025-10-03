@@ -13,9 +13,13 @@
 
 
 
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
-  <center><h1>Quantum Bloch Sphere Visualizer</h1></center>
+  <center>
+    <h1>Quantum Bloch Sphere Visualizer</h1>
+    <button id="themeToggle" aria-label="Toggle dark mode" title="Toggle theme" class="theme-toggle">🌙</button>
+  </center>
 <div class="main">
 <div class="circuitDisplay">
 
@@ -28,6 +32,10 @@
       <div id="afterSet" class="hidden">
         <label>Initial basis state:</label>
         <select id="basisState"></select>
+        <div id="basisInputWrap" class="hidden">
+          <input id="basisInput" type="text" inputmode="numeric" pattern="[0-1]*" placeholder="binary bitstring (e.g., 000...)">
+          <div class="small">Enter a length‑n binary string eg: 00010</div>
+        </div>
 
         <hr />
 
