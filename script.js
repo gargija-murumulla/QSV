@@ -47,6 +47,8 @@ const btnSet = document.getElementById('btnSet');
 const afterSet = document.getElementById('afterSet');
 const numQInput = document.getElementById('numQ');
 const basisSelect = document.getElementById('basisState');
+const basisInputWrap = document.getElementById('basisInputWrap');
+const basisInput = document.getElementById('basisInput');
 
 const gateType = document.getElementById('gateType');
 const singleTargetDiv = document.getElementById('singleTargetDiv');
@@ -74,6 +76,9 @@ const btnUndo = document.getElementById('btnUndo');
 const btnClearGates = document.getElementById('btnClearGates');
 const gatesListDiv = document.getElementById('gatesList');
 const btnRun = document.getElementById('btnRun');
+const runCircuitBtn = document.getElementById('cRun');
+const loadingSpinner = document.getElementById('loading');
+const themeToggleBtn = document.getElementById('themeToggle');
 
 const resultsDiv = document.getElementById('results');
 const blochSpheresDiv = document.getElementById('blochSpheres');
@@ -91,23 +96,69 @@ btnAddGate.addEventListener('click', onAddGate);
 btnUndo.addEventListener('click', onUndo);
 btnClearGates.addEventListener('click', onClearGates);
 btnRun.addEventListener('click', onRun);
+// theme toggle
+if (themeToggleBtn) {
+  initThemeFromStorage();
+  themeToggleBtn.addEventListener('click', toggleTheme);
+}
 
 // initialize UI
 onGateTypeChange();
 let histogramChart = null;
 let targetQubit = null;
+let isRunningBackend = false;
+// Clear visuals on any input/select change
+function clearVisuals(){
+  const qDiv = document.getElementById('qsphereDiv');
+  if (qDiv){ qDiv.innerHTML = ''; qDiv.classList.add('hidden'); }
+  blochSpheresDiv.innerHTML = '';
+  resultsDiv.innerHTML = '';
+  // clear charts (single-instance policy)
+  try {
+    if (window.stateChart) {
+      window.stateChart.data.labels = [];
+      window.stateChart.data.datasets[0].data = [];
+      window.stateChart.update();
+    }
+  } catch(e) {}
+  try {
+    if (typeof histogramChart !== 'undefined' && histogramChart) {
+      histogramChart.data.labels = [];
+      histogramChart.data.datasets[0].data = [];
+      histogramChart.update();
+    }
+  } catch(e) {}
+}
+document.addEventListener('change', (e)=>{
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT')) {
+    clearVisuals();
+  }
+});
+document.addEventListener('input', (e)=>{
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT')) {
+    clearVisuals();
+  }
+});
 // ---------- Functions ----------
 blochSpheresDiv.innerHTML = "<div class = grid > <b><h2 style= text-align:'centre'>Qubit</h2></b> <p>The fundemental unit of quantum information, serving as the quantum equvivalent of a classical computer's bit. A qubit can have states 0, 1, 0/1(superposition). </p></div>"
 function drawHistogram(counts) {
     const labels = Object.keys(counts);
     const values = Object.values(counts);
-    const ctx = document.getElementById('histogram').getContext('2d', { willReadFrequently: true });
+    const canvas = document.getElementById('histogram');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    if (histogramChart) {
+    // Reuse existing chart if present
+    const existing = Chart.getChart(canvas);
+    if (existing) {
+      histogramChart = existing;
       histogramChart.data.labels = labels;
-        histogramChart.data.datasets[0].data = values;
-        histogramChart.update();
+      histogramChart.data.datasets[0].data = values;
+      histogramChart.update();
+      return;
     }
+
     histogramChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -115,19 +166,29 @@ function drawHistogram(counts) {
             datasets: [{
                 label: 'Measurement Counts',
                 data: values,
-                backgroundColor: 'rgba(54, 162, 235, 0.7)',
-                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(149, 206, 243, 0.91)',
+                borderColor: 'rgb(7, 74, 119)',
                 borderWidth: 1
             }]
         },
         options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    labels: { color: '#000000' }
+                }
+            },
             scales: {
                 x: {
-                    title: { display: true, text: 'Bitstring Outcome' }
+                    title: { display: true, text: 'Bitstring Outcome', color: '#000000' },
+                    ticks: { color: '#000000' },
+                    grid: { color: 'rgba(0,0,0,0.1)' }
                 },
                 y: {
                     beginAtZero: true,
-                    title: { display: true, text: 'Counts' }
+                    title: { display: true, text: 'Counts', color: '#000000' },
+                    ticks: { color: '#000000' },
+                    grid: { color: 'rgba(0,0,0,0.1)' }
                 }
             }
         }
@@ -137,6 +198,14 @@ function drawHistogram(counts) {
 let firstQubit = false;
 function onSet(){
   nQ = parseInt(numQInput.value);
+  // Switch input UI: dropdown for <=10, text input for >10
+  if (nQ > 10) {
+    basisSelect.classList.add('hidden');
+    basisInputWrap.classList.remove('hidden');
+  } else {
+    basisInputWrap.classList.add('hidden');
+    basisSelect.classList.remove('hidden');
+  }
   if ((nQ >=1 && nQ <=5)) { 
   populateBasis(nQ);
   populateQubitSelectors(nQ);
@@ -194,6 +263,7 @@ else{
 }
 }
 function populateBasis(n){
+  if (n > 10) return; // skip generating huge dropdown
   basisSelect.innerHTML = "";
   for (let i = 0; i < (1 << n); i++){
     const opt = document.createElement('option');
@@ -218,13 +288,27 @@ function populateQubitSelectors(n){
 let initStates =[];
 function initState(nQ){
   const dim = 1<<nQ;
-  const initIndex = parseInt(basisSelect.value || "0", 2);
+  let initIndex = 0;
+  if (nQ > 10) {
+    const raw = (basisInput.value || '').trim();
+    const valid = raw && raw.length === nQ && /^[01]+$/.test(raw);
+    if (!valid) {
+      alert(`Please enter a ${nQ}-bit binary string (0/1).`);
+      initIndex = 0;
+      basisInput.value = '0'.repeat(nQ);
+    } else {
+      initIndex = parseInt(raw, 2);
+    }
+  } else {
+    initIndex = parseInt(basisSelect.value || "0", 2);
+  }
   stateVec = Array(dim).fill(0).map(()=>c(0,0));
   stateVec[initIndex] = c(1,0);
   initStates = getInitStates(initIndex,nQ);
 }
 
 function plotQSphere(divId, stateVec) {
+  const colors = getPlotColors();
   const nQ = Math.log2(stateVec.length);
   const spikeTraces = [];
   const tipTraces = [];
@@ -352,7 +436,10 @@ function plotQSphere(divId, stateVec) {
   const layout = {
     title:"Q-Sphere <br> size(Dot)-> probability<br> color(Dot)->Phase",
     margin:{l:0,r:0,b:0,t:30},
+    paper_bgcolor: colors.paper,
+    plot_bgcolor: colors.plot,
     scene:{
+      bgcolor: colors.scene,
       aspectmode:'cube',
       xaxis:{range:[-1.3,1.3],showgrid:false,zeroline:false,showticklabels:false,visible:false},
       yaxis:{range:[-1.3,1.3],showgrid:false,zeroline:false,showticklabels:false,visible:false},
@@ -1138,10 +1225,21 @@ function drawStateBarGraph(stateVec) {
     },
     options: {
       responsive: true,
+      plugins: {
+        legend: {
+          labels: { color: '#000000' }
+        }
+      },
       scales: {
+        x: {
+          ticks: { color: '#000000' },
+          grid: { color: 'rgba(0,0,0,0.1)' }
+        },
         y: {
           beginAtZero: true,
-          max: 1
+          max: 1,
+          ticks: { color: '#000000' },
+          grid: { color: 'rgba(0,0,0,0.1)' }
         }
       }
     }
@@ -1301,6 +1399,7 @@ function drawAllBloch(reducedList) {
 }
 
 function plotBloch(containerId, bloch, q) {
+  const colors = getPlotColors();
   const U = 30, V = 30;
   let xs = [], ys = [], zs = [];
 
@@ -1395,7 +1494,10 @@ function plotBloch(containerId, bloch, q) {
   const layout = {
     title: `Qubit ${q}`,
     margin: { l: 0, r: 0, b: 0, t: 30 },
+    paper_bgcolor: colors.paper,
+    plot_bgcolor: colors.plot,
     scene: {
+      bgcolor: colors.scene,
       aspectmode: 'cube',
       xaxis: { range: [-1.3, 1.3], showgrid: false, zeroline: false, showticklabels: false, visible: false },
       yaxis: { range: [-1.3, 1.3], showgrid: false, zeroline: false, showticklabels: false, visible: false },
@@ -1421,9 +1523,16 @@ basisSelect.addEventListener("change", () => {
   initStates = getInitStates(initIndex, nQ);
   console.log("👉 Updated initial states:", initStates);
 });
+if (basisInput) {
+  basisInput.addEventListener('input', ()=>{
+    const raw = basisInput.value.trim();
+    if (raw.length > nQ) basisInput.value = raw.slice(0, nQ);
+  });
+}
 document.getElementById("cRun").addEventListener("click", async () => {
+  // legacy direct handler retained but wrapped above
   // Build payload from your gates list
-  alert("The run circuits results follow the reverse order(default qiskit order) i.e., qn-1, qn-2....q0");
+  
   try {
     
     if(nQ<6){
@@ -1479,6 +1588,8 @@ document.getElementById("cRun").addEventListener("click", async () => {
         `Bloch : (${x}, ${y}, ${z})`+
         "\n\nRhos:\n" + formatComplexMatrix(data.rho);
       MathJax.typeset();
+      // clear any previous bloch wrappers for tomography case
+      blochSpheresDiv.innerHTML = '';
       const wrapper = document.createElement('div');
       wrapper.className = 'bloch-wrapper';
 
@@ -1522,8 +1633,148 @@ document.getElementById("cRun").addEventListener("click", async () => {
       document.getElementById("backendResults").textContent = "Error: " + err;
   }
 });
-   
+// ---------- Interactivity Enhancements ----------
+function toggleTheme(){
+  const isDark = document.body.classList.toggle('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  if (themeToggleBtn) themeToggleBtn.textContent = isDark ? '☀️' : '🌙';
+  // update plot backgrounds immediately
+  refreshPlotBackgrounds();
+}
+function initThemeFromStorage(){
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const useDark = saved ? (saved === 'dark') : prefersDark;
+  if (useDark) document.body.classList.add('dark');
+  if (themeToggleBtn) themeToggleBtn.textContent = useDark ? '☀️' : '🌙';
+}
 
+function getPlotColors(){
+  const isDark = document.body.classList.contains('dark');
+  return isDark
+    ? { paper:'#8ca3d3', plot:'#8ca3d3', scene:'#8ca3d3' }
+    : { paper:'rgb(246, 246, 248)', plot:'rgb(247, 247, 247)', scene:'rgb(249, 249, 250)' };
+}
+
+function refreshPlotBackgrounds(){
+  const colors = getPlotColors();
+  // Q-sphere
+  const qDiv = document.getElementById('qsphereDiv');
+  if (qDiv && qDiv.data) {
+    try { Plotly.relayout(qDiv, { paper_bgcolor: colors.paper, plot_bgcolor: colors.plot, 'scene.bgcolor': colors.scene }); } catch(e) {}
+  }
+  // Bloch spheres
+  document.querySelectorAll('.bloch-canvas').forEach((el)=>{
+    try { Plotly.relayout(el, { paper_bgcolor: colors.paper, plot_bgcolor: colors.plot, 'scene.bgcolor': colors.scene }); } catch(e) {}
+  });
+}
+
+function setControlsDisabled(disabled){
+  const controls = document.querySelectorAll('button, input, select');
+  controls.forEach(el => {
+    if (el.id === 'themeToggle') return; // keep theme usable
+    el.disabled = disabled;
+    el.style.opacity = disabled ? 0.7 : 1;
+    el.style.pointerEvents = disabled ? 'none' : 'auto';
+  });
+}
+function showLoading(show){
+  if (!loadingSpinner) return;
+  loadingSpinner.style.display = show ? 'block' : 'none';
+}
+async function onBackendRunClickWrap(ev){
+  // mimic original click handler but add loading/disable UX
+  try{
+    if (isRunningBackend) return; // prevent double runs
+    isRunningBackend = true;
+    showLoading(true);
+    setControlsDisabled(true);
+    // trigger original listener logic by dispatching a new click is redundant; call inline logic instead
+    await backendRunCore();
+  } finally {
+    showLoading(false);
+    setControlsDisabled(false);
+    isRunningBackend = false;
+  }
+}
+async function backendRunCore(){
+  // Factor out body of existing handler to reuse with UX wrapper
+  const nQ_local = nQ;
+  if(nQ_local<6){
+    const payload = { numQubits: nQ_local, gates: gateSequence, initialStates: initStates };
+    const res = await fetch("https://qsv-3xax.onrender.com/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    console.log("👉 Sending to backend:", payload);
+    const data = await res.json();
+    document.getElementById("backendResults").textContent =
+      "Backend Counts:\n" + JSON.stringify(data.counts, null, 2) +
+      "\n\nQASM:\n" + data.qasm;
+    drawHistogram(data.counts);
+  } else {
+    alert("we used single qubit Quantum State tomography for qubits more than 5. The results may have some eroor due to little noise ");
+    targetQubit = parseInt(document.getElementById("qubitSelect").value);
+    if (isNaN(targetQubit)) {
+      alert("Please select a valid target qubit!");
+      return;
+    }
+    const payload = { numQubits: nQ_local, gates: gateSequence, initialStates: initStates, targetQubit };
+    const res = await fetch("https://qsv-3xax.onrender.com/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    document.getElementById("backendResults").textContent =
+      `Bloch : (${data.blochs.x}, ${data.blochs.y}, ${data.blochs.z})`+
+      "\n\nRhos:\n" + formatComplexMatrix(data.rho);
+    MathJax.typeset();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'bloch-wrapper';
+    const block = document.createElement('div');
+    block.id = 'bloch_' + targetQubit;
+    block.className = 'bloch-canvas';
+    wrapper.appendChild(block);
+    const props = document.createElement('div');
+    props.className = 'bloch-properties';
+    const x = Number(data.blochs.x.toFixed(3));
+    const y = Number(data.blochs.y.toFixed(3));
+    const z = Number(data.blochs.z.toFixed(3));
+    const e = cleanFixed(qubitEntropy(x,y,z).toFixed(3));
+    props.innerHTML = `
+      <h3>Qubit ${targetQubit}</h3>
+      <p>Bloch vector:(${x}, ${y}, ${z})</p>
+      <p>Entropy(mixedness): ${e}</p>
+      <p>Purity: ${(1 + x * x + y * y + z * z) / 2}</p>
+      <p>Measurement probabilities(|0>,|1>): 
+         ${formatReal(data.rho[0][0], 3)}, 
+         ${formatReal(data.rho[1][1], 3)}
+      </p>
+    `;
+    wrapper.appendChild(props);
+    blochSpheresDiv.appendChild(wrapper);
+    const r = Math.sqrt(x**2 + y**2 + z**2);
+    if(r< 1e-6){
+      plotBloch(block.id, {x:0,y:0,z:0}, targetQubit,true);
+    }
+    plotBloch(block.id,{x,y,z},targetQubit,true);
+  }
+}
+
+// Keyboard shortcuts
+window.addEventListener('keydown', (e)=>{
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.isContentEditable)) return;
+  if (e.key === 'a' || e.key === 'A') { document.getElementById('btnAddGate').click(); }
+  if (e.key === 'u' || e.key === 'U') { btnUndo.click(); }
+  if (e.key === 'c' || e.key === 'C') { btnClearGates.click(); }
+  if (e.key === 'r' || e.key === 'R') {
+    if (e.shiftKey) { runCircuitBtn.click(); }
+    else { btnRun.click(); }
+  }
+});
+   
 
 
 
