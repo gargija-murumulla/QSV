@@ -8,6 +8,7 @@ from qiskit_aer import AerSimulator
 from qiskit.qasm2 import dumps
 from typing import Tuple, Dict, List, Optional
 from qiskit.quantum_info import DensityMatrix, partial_trace
+from qiskit.circuit.library import UnitaryGate
 import numpy as np
 
 # Try importing qiskit-experiments (recommended). If not available, we'll fallback.
@@ -27,16 +28,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class ComplexNumber(BaseModel):
+    re: float
+    im: float
+
 class Gate(BaseModel):
     type: str
+    name: Optional[str] = None           # "m", "cx", etc.
+    customType: Optional[str] = None     # "CUSTOM_MATRIX", "CUSTOM_CIRCUIT", "CUSTOM_CONTROL"
     params: list[int] = []
     angle: float | None = None
+    matrix: Optional[List[List[ComplexNumber]]] = None
+    subGates: Optional[List["Gate"]] = None   # recursive definition for CUSTOM_CIRCUIT
 
 class CircuitRequest(BaseModel):
     numQubits: int
     gates: list[Gate]
     initialStates: list[int] | None = None
     targetQubit : int | None = None
+
+def decode_complex_matrix(mat: List[List["ComplexNumber"]]) -> np.ndarray:
+    rows, cols = len(mat), len(mat[0])
+    out = np.zeros((rows, cols), dtype=complex)
+    for i in range(rows):
+        for j in range(cols):
+            out[i, j] = complex(mat[i][j].re, mat[i][j].im)
+    return out
+
 
 def serialize_rho(rho: np.ndarray):
     """Convert a density matrix with complex numbers to JSON-safe format."""
@@ -200,6 +218,29 @@ def reconstruct_single_qubit_rho_experiments(base_qc: QuantumCircuit,
     z = np.real(rho_mat[0, 0] - rho_mat[1, 1])
     return float(x), float(y), float(z), rho_mat
 
+def apply_gate(qc: QuantumCircuit, gate: Gate):
+    g, p, a = gate.type, gate.params, gate.angle
+
+    if g == "X": qc.x(p[0])
+    elif g == "Y": qc.y(p[0])
+    elif g == "Z": qc.z(p[0])
+    elif g == "H": qc.h(p[0])
+    elif g == "S": qc.s(p[0])
+    elif g == "Sdg": qc.sdg(p[0])
+    elif g == "T": qc.t(p[0])
+    elif g == "Tdg": qc.tdg(p[0])
+    elif g == "Rx": qc.rx(a, p[0])
+    elif g == "Ry": qc.ry(a, p[0])
+    elif g == "Rz": qc.rz(a, p[0])
+    elif g == "Phase": qc.p(a, p[0])
+    elif g == "CNOT": qc.cx(p[0], p[1])
+    elif g == "CZ": qc.cz(p[0], p[1])
+    elif g == "SWAP": qc.swap(p[0], p[1])
+    elif g == "CCNOT": qc.ccx(p[0], p[1], p[2])
+
+    else:
+        raise ValueError(f"Unsupported gate: {gate}")
+
 
 def build_circuit(data: CircuitRequest):
     n = data.numQubits
@@ -234,6 +275,65 @@ def build_circuit(data: CircuitRequest):
         elif g == "CZ": qc.cz(p[0], p[1])
         elif g == "SWAP": qc.swap(p[0], p[1])
         elif g == "CCNOT": qc.ccx(p[0], p[1], p[2])
+        elif g == "CUSTOM" and gate.customType == "CUSTOM_MATRIX":
+            matrix_np = decode_complex_matrix(gate.matrix)
+            unitary = UnitaryGate(matrix_np, label=gate.name)
+            qc.append(unitary, p)
+        elif g == "CUSTOM" and gate.customType == "CUSTOM_CIRCUIT":
+            # Find how many qubits the subcircuit needs
+            max_qubit = -1
+            for sg in gate.subGates or []:
+                if sg.params:
+                    max_qubit = max(max_qubit, max(sg.params))
+            num_sub_qubits = max_qubit + 1 if max_qubit >= 0 else len(p)
+
+            sub_qc = QuantumCircuit(num_sub_qubits)
+
+            for sg in gate.subGates or []:
+                apply_gate(sub_qc, sg)  # ✅ now sub_qc has correct size
+
+            qc.compose(sub_qc, p, inplace = True)
+        elif g == "CUSTOM" and gate.customType == "CUSTOM_CONTROL":
+            if not gate.subGates or len(gate.subGates) != 1:
+                raise ValueError("CUSTOM_CONTROL must wrap exactly one subGate")
+            
+            sg = gate.subGates[0]
+
+            # Frontend supplies exact qubit indices: last = target, rest = controls
+            ctrl_qubits = p[:-1]
+            target_qubit = p[-1]
+
+            # Validate qubits are within circuit range
+            all_qubits = ctrl_qubits + [target_qubit]
+            if any(q >= data.numQubits or q < 0 for q in all_qubits):
+                raise ValueError(f"Control or target qubit out of range: {all_qubits}")
+
+            # Apply native multi-controlled gates
+            if sg.type == "X":
+                qc.mcx(ctrl_qubits, target_qubit)
+            elif sg.type == "Y":
+                qc.mcy(ctrl_qubits, target_qubit)
+            elif sg.type == "Z":
+                qc.mcz(ctrl_qubits, target_qubit)
+            elif sg.type == "H":
+                qc.mch(ctrl_qubits, target_qubit)
+            elif sg.type == "Rx":
+                qc.mcrx(sg.angle, ctrl_qubits, target_qubit)
+            elif sg.type == "Ry":
+                qc.mcry(sg.angle, ctrl_qubits, target_qubit)
+            elif sg.type == "Rz":
+                qc.mcrz(sg.angle, ctrl_qubits, target_qubit)
+            elif sg.type == "Phase":
+                qc.mcp(sg.angle, ctrl_qubits, target_qubit)
+            elif sg.type == "S":
+                # S gate controlled: apply as phase pi/2
+                qc.mcp(np.pi/2, ctrl_qubits, target_qubit)
+            elif sg.type == "T":
+                # T gate controlled: apply as phase pi/4
+                qc.mcp(np.pi/4, ctrl_qubits, target_qubit)
+        else:
+            raise ValueError(f"Unsupported controlled single-qubit gate: {sg.type}")
+
 
     # ✅ Always measure all qubits at the end
     if(n<6):
@@ -275,6 +375,7 @@ def run_circuit(request: CircuitRequest):
     if(request.numQubits<6):
         qc = build_circuit(request)
         backend = AerSimulator()
+        qc = transpile(qc, backend)
         job = backend.run(qc, shots=1024)
         result = job.result()
         counts = result.get_counts()
@@ -286,6 +387,7 @@ def run_circuit(request: CircuitRequest):
     else:
         qc = build_circuit(request)
         backend = AerSimulator()
+        qc = transpile(qc, backend)
             # Preferred path: qiskit-experiments
         try:
             if HAS_QISKIT_EXPERIMENTS:
