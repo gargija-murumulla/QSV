@@ -66,6 +66,11 @@
           <optgroup label="Three-qubit">
             <option value="CCNOT">CCNOT / Toffoli (c1,c2; target)</option>
           </optgroup>
+          <optgroup label="Custom Gates">
+            <option value="CUSTOM_MATRIX">Custom Matrix Gate</option>
+            <option value="CUSTOM_CIRCUIT">Custom Circuit Gate</option>
+            <option value="CUSTOM_CONTROL">Custom Control Gate</option>
+          </optgroup>
           
         </select>
 
@@ -105,6 +110,67 @@
           <select id="cc_c2"></select>
           <label>Target:</label>
           <select id="cc_t"></select>
+        </div>
+
+        <!-- Custom Matrix Gate -->
+        <div id="customMatrixDiv" class="hidden">
+          <label>Gate Name:</label>
+          <input id="customGateName" type="text" placeholder="e.g., MyGate" />
+          <label>Matrix Size:</label>
+          <select id="matrixSize">
+            <option value="2">2x2 (1 qubit)</option>
+            <option value="4">4x4 (2 qubits)</option>
+            <option value="8">8x8 (3 qubits)</option>
+          </select>
+          <label>Matrix (enter complex numbers as a+bi):</label>
+          <label>Target qubit:</label>
+          <select id="controlTarget"></select>
+          <div id="matrixInput"></div>
+          <button id="validateMatrix" type="button">Validate Matrix</button>
+          <div id="matrixValidation" class="small"></div>
+        </div>
+
+        <!-- Custom Circuit Gate -->
+        <div id="customCircuitDiv" class="hidden">
+          <label>Gate Name:</label>
+          <input id="circuitGateName" type="text" placeholder="e.g., MyCircuit" />
+          <label>Number of qubits:</label>
+          <input id="circuitQubits" type="number" min="1" max="5" value="2" />
+          <div id="circuitBuilder">
+            <h4>Build your circuit:</h4>
+            <div id="circuitGatesList"></div>
+            <button id="addCircuitGate" type="button">Add Gate to Circuit</button>
+          </div>
+          <button id="validateCircuit" type="button">Validate Circuit</button>
+          <div id="circuitValidation" class="small"></div>
+        </div>
+
+        <!-- Custom Control Gate -->
+        <div id="customControlDiv" class="hidden">
+          <label>Gate Name:</label>
+          <input id="controlGateName" type="text" placeholder="e.g., MyControlGate" />
+          <label>Base Gate:</label>
+          <select id="baseGate">
+            <option value="X">X (Pauli-X)</option>
+            <option value="Y">Y (Pauli-Y)</option>
+            <option value="Z">Z (Pauli-Z)</option>
+            <option value="H">H (Hadamard)</option>
+            <option value="S">S</option>
+            <option value="T">T</option>
+            <option value="Rx">Rx(θ)</option>
+            <option value="Ry">Ry(θ)</option>
+            <option value="Rz">Rz(θ)</option>
+          </select>
+          <div id="controlAngleDiv" class="hidden">
+            <label>Angle (degrees):</label>
+            <input id="controlAngle" type="number" step="1" value="90" />
+          </div>
+          <label>Control qubits (select multiple):</label>
+          <div id="controlQubitsList"></div>
+          <label>Target qubit:</label>
+          <select id="controlTarget1"></select>
+          <button id="validateControl" type="button">Validate Control Gate</button>
+          <div id="controlValidation" class="small"></div>
         </div>
 
         <div class="row gap">
