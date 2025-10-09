@@ -71,6 +71,36 @@ const cc_c1 = document.getElementById('cc_c1');
 const cc_c2 = document.getElementById('cc_c2');
 const cc_t = document.getElementById('cc_t');
 
+// Custom gate elements
+const customMatrixDiv = document.getElementById('customMatrixDiv');
+const customCircuitDiv = document.getElementById('customCircuitDiv');
+const customControlDiv = document.getElementById('customControlDiv');
+const matrixSize = document.getElementById('matrixSize');
+const matrixInput = document.getElementById('matrixInput');
+const validateMatrix = document.getElementById('validateMatrix');
+const matrixValidation = document.getElementById('matrixValidation');
+const customGateName = document.getElementById('customGateName');
+const circuitGateName = document.getElementById('circuitGateName');
+const circuitQubits = document.getElementById('circuitQubits');
+const circuitGatesList = document.getElementById('circuitGatesList');
+const addCircuitGate = document.getElementById('addCircuitGate');
+const validateCircuit = document.getElementById('validateCircuit');
+const circuitValidation = document.getElementById('circuitValidation');
+const controlGateName = document.getElementById('controlGateName');
+const baseGate = document.getElementById('baseGate');
+const controlAngleDiv = document.getElementById('controlAngleDiv');
+const controlAngle = document.getElementById('controlAngle');
+const controlQubitsList = document.getElementById('controlQubitsList');
+const controlTarget = document.getElementById('controlTarget');
+const controlTarget1 = document.getElementById('controlTarget1');
+
+const validateControl = document.getElementById('validateControl');
+const controlValidation = document.getElementById('controlValidation');
+const customGatesModal = document.getElementById('customGatesModal');
+const closeModal = document.getElementById('closeModal');
+const customGatesList = document.getElementById('customGatesList');
+const createNewGate = document.getElementById('createNewGate');
+
 const btnAddGate = document.getElementById('btnAddGate');
 const btnUndo = document.getElementById('btnUndo');
 const btnClearGates = document.getElementById('btnClearGates');
@@ -89,6 +119,14 @@ let nQ = 2;
 let stateVec = []; // array of math.complex
 let gateSequence = []; // each gate object: {type, params, angle?}
 let lastData = null;
+let customGates = {}; // Store custom gates: {name: {type, matrix, circuit, controls, etc.}}
+let currentCustomGate = {
+  type: 'CUSTOM_CIRCUIT',
+  name: '',
+  qubits: nQ,
+  gates: []
+};
+; // Currently being created custom gate
 // ---------- Setup handlers ----------
 btnSet.addEventListener('click', onSet);
 gateType.addEventListener('change', onGateTypeChange);
@@ -104,6 +142,11 @@ if (themeToggleBtn) {
 
 // initialize UI
 onGateTypeChange();
+
+// Ensure custom gate panels are hidden on page load
+customMatrixDiv.classList.add('hidden');
+customCircuitDiv.classList.add('hidden');
+customControlDiv.classList.add('hidden');
 let histogramChart = null;
 let targetQubit = null;
 let isRunningBackend = false;
@@ -207,60 +250,60 @@ function onSet(){
     basisSelect.classList.remove('hidden');
   }
   if ((nQ >=1 && nQ <=5)) { 
-  populateBasis(nQ);
-  populateQubitSelectors(nQ);
-  const initIndex = 0;
-  initStates = getInitStates(initIndex, nQ);
-  console.log("👉 Default initial state:", initStates);
-  afterSet.classList.remove('hidden');
-  gateSequence = [];
-  renderGateList();
-  resultsDiv.innerHTML = "<div class='small'>Initial state set. Add gates and click Run.</div>";
-  if(!firstQubit){
-    blochSpheresDiv.innerHTML = "<div class = grid ><p>Tensor  products (&#8855;) are essential for describing subsystems composed of multiple quantum subsystems, where the state of the total system is given by the tensor product of the states of the individual subsystems </p></div>";
-    firstQubit = true;
-  }
-  blochSpheresDiv.innerHTML = "";
-  resultsDiv.innerHTLML = "";
-  container.innerHTML = "<h2>Circuit Diagram </h2>";
-  customQubitContainer.classList.add("hidden");
-  btnRun.classList.remove("hidden");
-  stateBarChart.classList.add("hidden");
-}
-else{
-  populateBasis(nQ);
-  populateQubitSelectors(nQ);
-  const initIndex = 0;
-  initStates = getInitStates(initIndex, nQ);
-  console.log("👉 Default initial state:", initStates);
-  afterSet.classList.remove('hidden');
-  gateSequence = [];
-  renderGateList();
-  resultsDiv.innerHTML = "<div class='small'>Initial state set. Add gates and click Run.</div>";
-  if(!firstQubit){
-    blochSpheresDiv.innerHTML = "<div class = grid ><p>Tensor  products (&#8855;) are essential for describing subsystems composed of multiple quantum subsystems, where the state of the total system is given by the tensor product of the states of the individual subsystems </p></div>";
-    firstQubit = true;
-  }
-  blochSpheresDiv.innerHTML = "";
-  resultsDiv.innerHTLML = "";
-  container.innerHTML = "<h2>Circuit Diagram </h2>";
-
-  customQubitContainer.classList.remove("hidden");
-  btnRun.classList.add("hidden");
-  const qubitSelect = document.getElementById("qubitSelect");
-  qubitSelect.innerHTML = "";
-  for (let i = 0; i < nQ; i++) {
-    const opt = document.createElement("option");
-    opt.value = i;
-    opt.textContent = "q" + i;
-    if(i===0){
-      opt.selected = true;
+    populateBasis(nQ);
+    populateQubitSelectors(nQ);
+    const initIndex = 0;
+    initStates = getInitStates(initIndex, nQ);
+    console.log("👉 Default initial state:", initStates);
+    afterSet.classList.remove('hidden');
+    gateSequence = [];
+    renderGateList();
+    resultsDiv.innerHTML = "<div class='small'>Initial state set. Add gates and click Run.</div>";
+    if(!firstQubit){
+      blochSpheresDiv.innerHTML = "<div class = grid ><p>Tensor  products (&#8855;) are essential for describing subsystems composed of multiple quantum subsystems, where the state of the total system is given by the tensor product of the states of the individual subsystems </p></div>";
+      firstQubit = true;
     }
-    qubitSelect.appendChild(opt);
+    blochSpheresDiv.innerHTML = "";
+    resultsDiv.innerHTLML = "";
+    container.innerHTML = "<h2>Circuit Diagram </h2>";
+    customQubitContainer.classList.add("hidden");
+    btnRun.classList.remove("hidden");
+    stateBarChart.classList.add("hidden");
   }
-  
+  else{
+    populateBasis(nQ);
+    populateQubitSelectors(nQ);
+    const initIndex = 0;
+    initStates = getInitStates(initIndex, nQ);
+    console.log("👉 Default initial state:", initStates);
+    afterSet.classList.remove('hidden');
+    gateSequence = [];
+    renderGateList();
+    resultsDiv.innerHTML = "<div class='small'>Initial state set. Add gates and click Run.</div>";
+    if(!firstQubit){
+      blochSpheresDiv.innerHTML = "<div class = grid ><p>Tensor  products (&#8855;) are essential for describing subsystems composed of multiple quantum subsystems, where the state of the total system is given by the tensor product of the states of the individual subsystems </p></div>";
+      firstQubit = true;
+    }
+    blochSpheresDiv.innerHTML = "";
+    resultsDiv.innerHTLML = "";
+    container.innerHTML = "<h2>Circuit Diagram </h2>";
 
-}
+    customQubitContainer.classList.remove("hidden");
+    btnRun.classList.add("hidden");
+    const qubitSelect = document.getElementById("qubitSelect");
+    qubitSelect.innerHTML = "";
+    for (let i = 0; i < nQ; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = "q" + i;
+      if(i===0){
+        opt.selected = true;
+      }
+      qubitSelect.appendChild(opt);
+    }
+    
+
+  }
 }
 function populateBasis(n){
   if (n > 10) return; // skip generating huge dropdown
@@ -278,7 +321,7 @@ function populateBasis(n){
 
 
 function populateQubitSelectors(n){
-  const sels = [targetQ, controlQ, targetQ2, swapA, swapB, cc_c1, cc_c2, cc_t];
+  const sels = [targetQ, controlQ, controlTarget,controlTarget1, targetQ2, swapA, swapB, cc_c1, cc_c2, cc_t];
   sels.forEach(s => s.innerHTML = '');
   for (let i=0;i<n;i++){
     const opt = (id)=>{ const o=document.createElement('option'); o.value=i; o.text='q'+i; return o; };
@@ -460,7 +503,7 @@ function getInitStates(initIndex,nQ) {
 }
 
 
-function onGateTypeChange(){
+ function onGateTypeChange(){
   const type = gateType.value;
   // hide all
   singleTargetDiv.classList.add('hidden');
@@ -468,6 +511,9 @@ function onGateTypeChange(){
   swapDiv.classList.add('hidden');
   ccnotDiv.classList.add('hidden');
   angleDiv.classList.add('hidden');
+  customMatrixDiv.classList.add('hidden');
+  customCircuitDiv.classList.add('hidden');
+  customControlDiv.classList.add('hidden');
 
   // show relevant
   if (['X','Y','Z','H','S','Sdg','T','Tdg','Rx','Ry','Rz','Phase','MEASURE'].includes(type)){
@@ -485,6 +531,18 @@ function onGateTypeChange(){
   }
   if (type === 'CCNOT'){
     ccnotDiv.classList.remove('hidden');
+  }
+  if (type === 'CUSTOM_MATRIX'){
+    customMatrixDiv.classList.remove('hidden');
+    setupMatrixInput();
+  }
+  if (type === 'CUSTOM_CIRCUIT'){
+    customCircuitDiv.classList.remove('hidden');
+    setupCircuitBuilder();
+  }
+  if (type === 'CUSTOM_CONTROL'){
+    customControlDiv.classList.remove('hidden');
+    setupControlBuilder();
   }
 }
 
@@ -512,6 +570,22 @@ function onAddGate(){
     if (set.size < 3) { alert("Controls and target must be all different"); return; }
     if (nQ < 3) { alert("CCNOT needs at least 3 qubits"); return; }
     gate.params = [c1, c2, t];
+  } else if (type === 'CUSTOM_MATRIX'){
+    if (!validateCustomMatrix()) return;
+    const name = customGateName.value.trim();
+    const target = parseInt(controlTarget.value);
+    gate = customGates[name];
+  } else if (type === 'CUSTOM_CIRCUIT'){
+    if (!validateCustomCircuit()) return;
+    const name = circuitGateName.value.trim();
+    gate = customGates[name];
+  } else if (type === 'CUSTOM_CONTROL'){
+    if (!validateCustomControl()) return;
+    const name = controlGateName.value.trim();
+    const selectedControls = Array.from(controlQubitsList.querySelectorAll('input[type="checkbox"]:checked'))
+      .map(cb => parseInt(cb.value));
+    const target = parseInt(controlTarget.value);
+    gate = customGates[name];
   }
 
   gateSequence.push(gate);
@@ -684,38 +758,38 @@ function renderCircuit(numQubits, gates) {
     }
     //cz
     // CZ
-if (g.type === "CZ") {
-  const c = g.params[0];
-  const t = g.params[1];
-  const yc = 30 + c * qheight;
-  const yt = 30 + t * qheight;
+    if (g.type === "CZ") {
+      const c = g.params[0];
+      const t = g.params[1];
+      const yc = 30 + c * qheight;
+      const yt = 30 + t * qheight;
 
-  // Control dot
-  const dotC = document.createElementNS(svgNS, "circle");
-  dotC.setAttribute("cx", x);
-  dotC.setAttribute("cy", yc);
-  dotC.setAttribute("r", 6);
-  dotC.setAttribute("fill", "black");
-  svg.appendChild(dotC);
+      // Control dot
+      const dotC = document.createElementNS(svgNS, "circle");
+      dotC.setAttribute("cx", x);
+      dotC.setAttribute("cy", yc);
+      dotC.setAttribute("r", 6);
+      dotC.setAttribute("fill", "black");
+      svg.appendChild(dotC);
 
-  // Target dot
-  const dotT = document.createElementNS(svgNS, "circle");
-  dotT.setAttribute("cx", x);
-  dotT.setAttribute("cy", yt);
-  dotT.setAttribute("r", 6);
-  dotT.setAttribute("fill", "black");
-  svg.appendChild(dotT);
+      // Target dot
+      const dotT = document.createElementNS(svgNS, "circle");
+      dotT.setAttribute("cx", x);
+      dotT.setAttribute("cy", yt);
+      dotT.setAttribute("r", 6);
+      dotT.setAttribute("fill", "black");
+      svg.appendChild(dotT);
 
-  // Vertical line connecting them
-  const lineV = document.createElementNS(svgNS, "line");
-  lineV.setAttribute("x1", x);
-  lineV.setAttribute("y1", yc);
-  lineV.setAttribute("x2", x);
-  lineV.setAttribute("y2", yt);
-  lineV.setAttribute("stroke", "black");
-  lineV.setAttribute("stroke-width", "2");
-  svg.appendChild(lineV);
-}
+      // Vertical line connecting them
+      const lineV = document.createElementNS(svgNS, "line");
+      lineV.setAttribute("x1", x);
+      lineV.setAttribute("y1", yc);
+      lineV.setAttribute("x2", x);
+      lineV.setAttribute("y2", yt);
+      lineV.setAttribute("stroke", "black");
+      lineV.setAttribute("stroke-width", "2");
+      svg.appendChild(lineV);
+    }
 
     // SWAP
     if (g.type === "SWAP") {
@@ -856,6 +930,43 @@ if (g.type === "CZ") {
       line.setAttribute("stroke-dasharray", "4");
       svg.appendChild(line);
     }
+
+    // Custom gates
+    if (g.type === "CUSTOM") {
+      const customGate = customGates[g.name];
+      if (customGate) {
+        const rect = document.createElementNS(svgNS, "rect");
+        rect.setAttribute("x", x - 30);
+        rect.setAttribute("y", 30 - 25);
+        rect.setAttribute("width", 60);
+        rect.setAttribute("height", numQubits * qheight + 50);
+        rect.setAttribute("fill", "#e8f4fd");
+        rect.setAttribute("stroke", "#2196F3");
+        rect.setAttribute("stroke-width", "2");
+        svg.appendChild(rect);
+
+        const label = document.createElementNS(svgNS, "text");
+        label.setAttribute("x", x);
+        label.setAttribute("y", 30 + (numQubits * qheight) / 2);
+        label.setAttribute("text-anchor", "middle");
+        label.setAttribute("dominant-baseline", "middle");
+        label.setAttribute("font-size", "12");
+        label.setAttribute("font-weight", "bold");
+        label.textContent = g.name;
+        svg.appendChild(label);
+
+        // Add type indicator
+        const typeLabel = document.createElementNS(svgNS, "text");
+        typeLabel.setAttribute("x", x);
+        typeLabel.setAttribute("y", 30 + (numQubits * qheight) / 2 + 15);
+        typeLabel.setAttribute("text-anchor", "middle");
+        typeLabel.setAttribute("dominant-baseline", "middle");
+        typeLabel.setAttribute("font-size", "10");
+        typeLabel.setAttribute("fill", "#666");
+        typeLabel.textContent = customGate.type.replace('CUSTOM_', '');
+        svg.appendChild(typeLabel);
+      }
+    }
           // --- Draw identity gates for qubits not affected by this gate ---
     for (let q = 0; q < numQubits; q++) {
       let isTarget = false;
@@ -868,8 +979,11 @@ if (g.type === "CZ") {
         isTarget = (q === g.params[0] || q === g.params[1] || q === g.params[2]);
       } else if (g.type === "MEASURE") {
         isTarget = (q === g.params[0]);
-      }else if (g.type === "SWAP"){
+      } else if (g.type === "SWAP"){
         isTarget = (q === g.params[0] || q === g.params[1]);
+      } else if (g.type === "CUSTOM") {
+        // Custom gates affect all qubits for now
+        isTarget = true;
       }
       if (!isTarget) {
         const y = 30 + q * qheight;
@@ -931,13 +1045,28 @@ function renderGateList(){
 
     const left = document.createElement('div');
     left.className = 'gate-left';
-    let desc = `${i+1}. ${g.type}`;
-    if (g.params?.length){
-      desc += ` (${g.params.join(',')})`;
-    }
-    if (g.angle !== undefined){
-      const deg = (g.angle*180/Math.PI).toFixed(2);
-      desc += `, ${deg}°`;
+    let desc = `${i+1}.`;
+    if (g.type === 'CUSTOM') {
+      
+      desc += ` ${g.name}`;
+      const customGate = customGates[g.name];
+      if (customGate) {
+        desc = `${i+1}. ${g.name} (Custom ${customGate.type.replace('CUSTOM_', '')})`;
+        if (g.params?.length) {
+          desc += ` (${g.params.join(',')})`;
+        }
+      } else {
+        desc = `${i+1}. ${g.name} (Custom Gate - Not Found)`;
+      }
+    } else {
+      desc += ` ${g.type}`;
+      if (g.params?.length){
+        desc += ` (${g.params.join(',')})`;
+      }
+      if (g.angle !== undefined){
+        const deg = (g.angle*180/Math.PI).toFixed(2);
+        desc += `, ${deg}°`;
+      }
     }
     left.textContent = desc;
 
@@ -1066,7 +1195,280 @@ function applyCCNOT(psi, n, c1, c2, t){
   }
   return out;
 }
+
+// Custom gate application functions
+function applyCustomGate(psi, n, gate) {
+  const customGate = customGates[gate.name];
+  if (!customGate) {
+    console.error(`Custom gate "${gate.name}" not found`);
+    return psi;
+  }
+  
+  console.log(`Applying custom gate: ${gate.name} (${customGate.type})`);
+  console.log('Input state vector:', psi.map((amp, i) => `${i}: ${cre(amp).toFixed(3)}+${cim(amp).toFixed(3)}i`));
+  
+  let result;
+  switch (customGate.customType) {
+    case 'CUSTOM_MATRIX':
+      result = applyCustomMatrixGate(psi, n, customGate, gate.params[0]);
+      break;
+    case 'CUSTOM_CIRCUIT':
+      result = applyCustomCircuitGate(psi, n, customGate);
+      break;
+    case 'CUSTOM_CONTROL':
+      result = applyCustomControlGate(psi, n, customGate);
+      break;
+    default:
+      console.error(`Unknown custom gate type: ${customGate.type}`);
+      return psi;
+  }
+  
+  console.log('Output state vector:', result.map((amp, i) => `${i}: ${cre(amp).toFixed(3)}+${cim(amp).toFixed(3)}i`));
+  
+  // Validate the result
+  for (let i = 0; i < result.length; i++) {
+    if (isNaN(cre(result[i])) || isNaN(cim(result[i]))) {
+      console.error(`NaN in result at state ${i}:`, result[i]);
+      return psi; // Return original state if NaN detected
+    }
+  }
+  
+  return result;
+}
+
+function applyCustomMatrixGate(psi, n, customGate, target) {
+  const matrix = customGate.matrix;
+  const size = customGate.size;
+  const numQubits = Math.log2(size);
+  
+  console.log(`Applying custom matrix gate: ${numQubits} qubits, target: ${target}`);
+  console.log('Matrix:', matrix);
+  
+  if (numQubits === 1) {
+    // Single qubit gate - use existing function
+    return applySingleQubitGate(psi, n, target, matrix);
+  } else {
+    // Multi-qubit gate - simplified implementation
+    // For now, just apply as single qubit to the target
+    console.warn(`Multi-qubit custom matrix gate not fully implemented. Applying as single qubit to target ${target}`);
+    return applySingleQubitGate(psi, n, target, matrix);
+  }
+}
+function applyCustomCircuitGate(psi, n, customGate) {
+  let result = psi.slice();
+  
+  // Apply each gate in the circuit
+  for (const gate of customGate.subGates) {
+    if (gate.type in GATES) {
+      result = applySingleQubitGate(result, n, gate.params[0], GATES[gate.type]);
+    } else if (gate.type === 'Rx') {
+      result = applySingleQubitGate(result, n, gate.params[0], Rx(gate.angle));
+    } else if (gate.type === 'Ry') {
+      result = applySingleQubitGate(result, n, gate.params[0], Ry(gate.angle));
+    } else if (gate.type === 'Rz') {
+      result = applySingleQubitGate(result, n, gate.params[0], Rz(gate.angle));
+    } else if (gate.type === 'Phase') {
+      result = applySingleQubitGate(result, n, gate.params[0], Phase(gate.angle));
+    } else if (gate.type === 'CNOT') {
+      result = applyCNOT(result, n, gate.params[1], gate.params[0]);
+    } else if (gate.type === 'CZ') {
+      result = applyCZ(result, n, gate.params[1], gate.params[0]);
+    } else if (gate.type === 'SWAP') {
+      result = applySWAP(result, n, gate.params[1], gate.params[0]);
+    }else if (gate.type === 'CCNOT') {
+      result = applyCCNOT(result, n, gate.params[1], gate.params[0]);
+    }
+  }
+  
+  return result;
+}
+function applyCustomControlGate(psi, n, customGate) {
+  // Extract information from new structure
+  if (customGate.customType !== 'CUSTOM_CONTROL') return psi;
+
+  const control = customGate.params[0];
+  const target = customGate.params[1];
+  const subGate = customGate.subGates[0];
+  const baseGate = subGate.type;
+  const angle = subGate.angle || customGate.angle || 0;
+
+  const result = psi.map(() => c(0,0));
+
+  // Choose gate matrix
+  let gateMatrix;
+  if (baseGate === 'X') gateMatrix = [[c(0,0), c(1,0)], [c(1,0), c(0,0)]];
+  else if (baseGate === 'Y') gateMatrix = [[c(0,0), c(0,-1)], [c(0,1), c(0,0)]];
+  else if (baseGate === 'Z') gateMatrix = [[c(1,0), c(0,0)], [c(0,0), c(-1,0)]];
+  else if (baseGate === 'H') {
+    const s2 = 1 / Math.sqrt(2);
+    gateMatrix = [[c(s2,0), c(s2,0)], [c(s2,0), c(-s2,0)]];
+  } else if (baseGate === 'Rx') gateMatrix = Rx(angle);
+  else if (baseGate === 'Ry') gateMatrix = Ry(angle);
+  else if (baseGate === 'Rz') gateMatrix = Rz(angle);
+  else if (baseGate === 'Phase') gateMatrix = Phase(angle);
+  else return psi; // Unknown subgate type
+
+  // Apply controlled gate logic
+  for (let i = 0; i < psi.length; i++) {
+    const bin = i.toString(2).padStart(n, '0');
+    const controlBit = bin[control];
+    const targetBit = bin[target];
+
+    // If control not active → just copy
+    if (controlBit !== '1') {
+      result[i] = psi[i];
+      continue;
+    }
+
+    // Flip target bit to get partner state index
+    const flippedBin =
+      bin.substring(0, target) +
+      (targetBit === '0' ? '1' : '0') +
+      bin.substring(target + 1);
+    const j = parseInt(flippedBin, 2);
+
+    const a0 = psi[i];
+    const a1 = psi[j];
+
+    // Apply gate matrix to amplitudes
+    const new0 = math.add(
+      math.multiply(gateMatrix[0][0], a0),
+      math.multiply(gateMatrix[0][1], a1)
+    );
+    const new1 = math.add(
+      math.multiply(gateMatrix[1][0], a0),
+      math.multiply(gateMatrix[1][1], a1)
+    );
+
+    result[i] = new0;
+    result[j] = new1;
+  }
+
+  return result;
+}
+
+
+// function applyCustomControlGate(psi, n, customGate) {
+//   const { baseGate, controls, target, angle } = customGate;
+//   const result = Array(psi.length).fill(null).map(() => c(0,0));
+
+//   // Choose the gate matrix
+//   let gateMatrix;
+//   if (baseGate === 'X') gateMatrix = [[c(0,0), c(1,0)], [c(1,0), c(0,0)]];
+//   else if (baseGate === 'Y') gateMatrix = [[c(0,0), c(0,-1)], [c(0,1), c(0,0)]];
+//   else if (baseGate === 'Z') gateMatrix = [[c(1,0), c(0,0)], [c(0,0), c(-1,0)]];
+//   else if (baseGate === 'H') {
+//     const s2 = 1/Math.sqrt(2);
+//     gateMatrix = [[c(s2,0), c(s2,0)], [c(s2,0), c(-s2,0)]];
+//   } 
+//   else if (baseGate === 'Rx') gateMatrix = Rx(angle || 0);
+//   else if (baseGate === 'Ry') gateMatrix = Ry(angle || 0);
+//   else if (baseGate === 'Rz') gateMatrix = Rz(angle || 0);
+//   else if (baseGate === 'Phase') gateMatrix = Phase(angle || 0);
+//   else return psi; // unknown gate
+
+//   // Loop over all basis states
+//   for (let i = 0; i < psi.length; i++) {
+//     const bin = i.toString(2).padStart(n, '0');
+
+//     // Check if controls are all 1
+//     const allControlsOne = controls.every(c => bin[c] === '1');
+//     if (!allControlsOne) {
+//       // If controls not satisfied → copy amplitude
+//       result[i] = math.add(result[i], psi[i]);
+//       continue;
+//     }
+
+//     // Find partner index: same as i except target flipped
+//     const flippedBin = bin.substring(0,target) + (bin[target] === '0' ? '1' : '0') + bin.substring(target+1);
+//     const j = parseInt(flippedBin, 2);
+
+//     // Only handle each pair once (when target=0)
+//     if (bin[target] === '0') {
+//       const a0 = psi[i] || c(0,0);
+//       const a1 = psi[j] || c(0,0);
+
+//       // Apply 2x2 gate matrix
+//       const new0 = math.add(math.multiply(gateMatrix[0][0], a0), math.multiply(gateMatrix[0][1], a1));
+//       const new1 = math.add(math.multiply(gateMatrix[1][0], a0), math.multiply(gateMatrix[1][1], a1));
+
+//       result[i] = math.add(result[i], new0);
+//       result[j] = math.add(result[j], new1);
+//     }
+//   }
+
+//   return result;
+// }
+
+function applyMultiQubitGate(psi, n, matrix, targets) {
+  const k = targets.length;  // number of target qubits
+  const dim = psi.length;    // = 2^n
+  const subDim = 1 << k;     // size of the gate (2^k)
+  
+  if (matrix.length !== subDim) {
+    throw new Error(`Matrix size ${matrix.length} does not match target qubits (${k})`);
+  }
+
+  const result = Array(dim).fill(null).map(() => c(0,0));
+  const targetMask = targets.reduce((acc, t) => acc | (1 << (n-1-t)), 0); // bitmask for target qubits
+
+  // Loop through all basis states
+  for (let base = 0; base < dim; base++) {
+    // Extract the index of just the target qubits
+    let targetIndex = 0;
+    for (let j = 0; j < k; j++) {
+      const bitPos = n - 1 - targets[j];
+      const bit = (base >> bitPos) & 1;
+      targetIndex |= (bit << (k - 1 - j));
+    }
+
+    // Build the input subvector
+    const subvec = Array(subDim).fill(c(0,0));
+    subvec[targetIndex] = psi[base];
+
+    // Apply the matrix
+    for (let row = 0; row < subDim; row++) {
+      let accum = c(0,0);
+      for (let col = 0; col < subDim; col++) {
+        accum = math.add(accum, math.multiply(matrix[row][col], subvec[col]));
+      }
+
+      // Write back to correct global index
+      let newIndex = base;
+      for (let j = 0; j < k; j++) {
+        const bit = (row >> (k - 1 - j)) & 1;
+        const bitPos = n - 1 - targets[j];
+        if (bit) {
+          newIndex |= (1 << bitPos);
+        } else {
+          newIndex &= ~(1 << bitPos);
+        }
+      }
+
+      result[newIndex] = math.add(result[newIndex], accum);
+    }
+  }
+
+  return result;
+}
+
+// function applyMultiQubitGate(psi, n, matrix, targets) {
+//   // This is a simplified implementation for multi-qubit gates
+//   // In a full implementation, you'd need to handle the tensor product properly
+//   const dim = psi.length;
+//   const out = Array(dim).fill(0).map(() => c(0, 0));
+  
+//   // For now, just apply as single qubit to first target
+//   if (targets.length > 0) {
+//     return applySingleQubitGate(psi, n, targets[0], matrix);
+//   }
+  
+//   return out;
+// }
+
 // ---------- Density matrix & Bloch sphere ----------
+
+
 function outerProduct(psi){
   const dim = psi.length;
   const rho = Array(dim).fill(0).map(()=>Array(dim).fill(0).map(()=>c(0,0)));
@@ -1175,10 +1577,31 @@ function onRun(){
         psi = applySWAP(psi, nQ, g.params[0], g.params[1]);
       } else if (g.type === 'CCNOT'){
         psi = applyCCNOT(psi, nQ, g.params[0], g.params[1], g.params[2]);
+      } else if (g.type === 'CUSTOM'){
+        psi = applyCustomGate(psi, nQ, g);
+        
+        // Debug: Check for NaN values after custom gate application
+        for (let i = 0; i < psi.length; i++) {
+          if (isNaN(cre(psi[i])) || isNaN(cim(psi[i]))) {
+            console.error(`NaN detected after applying custom gate ${g.name} at state ${i}:`, psi[i]);
+            console.error('Gate details:', g);
+            console.error('Custom gate definition:', customGates[g.name]);
+          }
+        }
       }
     }
     qsphereDiv.classList.remove("hidden");
     stateVec = psi;
+    
+    // Debug: Log final state vector
+    console.log('Final state vector after all gates:');
+    stateVec.forEach((amp, i) => {
+      const prob = cre(amp) * cre(amp) + cim(amp) * cim(amp);
+      if (prob > 1e-6) {
+        console.log(`|${i.toString(2).padStart(nQ, '0')}⟩: ${cre(amp).toFixed(3)}+${cim(amp).toFixed(3)}i (P=${prob.toFixed(3)})`);
+      }
+    });
+    
     plotQSphere("qsphereDiv", stateVec);
     const rho = outerProduct(stateVec);
     const reducedList = [];
@@ -1186,7 +1609,9 @@ function onRun(){
       const red = partialTrace(rho, nQ, q);
       reducedList.push(red);
     }
-
+    console.log(stateVec);
+    console.log(rho);
+    console.log(reducedList);
     displayResults(stateVec, rho, reducedList);
     drawAllBloch(reducedList);
   }
@@ -1194,6 +1619,7 @@ function onRun(){
     alert("for more than 5 qubits we use tomography ");
   }
 }
+
 function drawStateBarGraph(stateVec) {
   // Compute probabilities (magnitude squared)
   const probs = stateVec.map(a => a.re * a.re + a.im * a.im);
@@ -1201,13 +1627,13 @@ function drawStateBarGraph(stateVec) {
   // Labels as binary states
   const labels = probs.map((_, i) => i.toString(2).padStart(Math.log2(probs.length), "0"));
 
-  // Destroy old chart if exists
   if (window.stateChart) {
     window.stateChart.data.labels = labels;
     window.stateChart.data.datasets[0].data = probs;
 
     // call Chart.js update method
     window.stateChart.update()
+    return;
   }
 
   const ctx = document.getElementById("stateBarChart").getContext("2d");
@@ -1253,12 +1679,12 @@ function displayResults(psi, rho, reducedList){
   const dim = psi.length;
   let s = "<div class='result-block'><h3>Final state amplitudes (nonzero)</h3>";
   for (let i = 0; i < dim; i++) {
-  const mag = Math.hypot(cre(psi[i]), cim(psi[i]));
-  if (mag > 1e-9) {
-    const amp = `${cre(psi[i]).toFixed(3)}${cim(psi[i]) >= 0 ? '+' : '-'}${Math.abs(cim(psi[i])).toFixed(3)}j`;
-    s += `<div>\\(|${i.toString(2).padStart(nQ,'0')}> : ${amp}\\)</div>`;
+    const mag = Math.hypot(cre(psi[i]), cim(psi[i]));
+    if (mag > 1e-9) {
+      const amp = `${cre(psi[i]).toFixed(3)}${cim(psi[i]) >= 0 ? '+' : '-'}${Math.abs(cim(psi[i])).toFixed(3)}j`;
+      s += `<div>\\(|${i.toString(2).padStart(nQ,'0')}> : ${amp}\\)</div>`;
+    }
   }
-}
 
   s += "</div>";
   
@@ -1633,6 +2059,438 @@ document.getElementById("cRun").addEventListener("click", async () => {
       document.getElementById("backendResults").textContent = "Error: " + err;
   }
 });
+// ---------- Custom Gate Functions ----------
+
+// Matrix-based custom gate setup
+function setupMatrixInput() {
+  const size = parseInt(matrixSize.value);
+  matrixInput.innerHTML = '';
+  
+  const container = document.createElement('div');
+  container.className = 'matrix-input-container';
+  container.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+  
+  for (let i = 0; i < size; i++) {
+    for (let j = 0; j < size; j++) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'matrix-input-cell';
+      input.placeholder = i === j ? '1' : '0';
+      input.dataset.row = i;
+      input.dataset.col = j;
+      container.appendChild(input);
+    }
+  }
+  
+  matrixInput.appendChild(container);
+}
+
+
+// Circuit-based custom gate setup
+function setupCircuitBuilder() {
+  const numQubits = parseInt(circuitQubits.value);
+  circuitGatesList.innerHTML = '<div class="small">No gates added to circuit yet.</div>';
+  
+  // Setup circuit gate selector
+  setupCircuitGateSelector();
+}
+
+function setupCircuitGateSelector() {
+  addCircuitGate.onclick = () => {
+    const gateType = prompt('Enter gate type (X, Y, Z, H, S, T, CNOT, CZ, SWAP, CCNOT, etc.):');
+    if (!gateType) return;
+
+    const target = prompt(`Enter target qubit (0-${currentCustomGate.qubits-1}):`);
+    if (target === null) return;
+
+    const targetQubit = parseInt(target);
+    if (isNaN(targetQubit) || targetQubit < 0 || targetQubit >= currentCustomGate.qubits) {
+      alert('Invalid target qubit');
+      return;
+    }
+
+    let gate = { type: gateType, params :[targetQubit] };
+
+    // Handle controlled gates
+    if (['CNOT', 'CZ', 'SWAP', 'CCNOT'].includes(gateType)) {
+      let numControls = 1;
+      if (gateType === 'CCNOT') numControls = 2; // Toffoli specifically
+      if (gateType === 'SWAP') numControls = 0; // SWAP = two targets, special case
+
+      for (let k = 0; k < numControls; k++) {
+        const control = prompt(`Enter control qubit ${k+1} (0-${currentCustomGate.qubits-1}):`);
+        if (control === null) return;
+
+        const controlQubit = parseInt(control);
+        if (isNaN(controlQubit) || controlQubit < 0 || controlQubit >= currentCustomGate.qubits) {
+          alert('Invalid control qubit');
+          return;
+        }
+
+        if (controlQubit === targetQubit) {
+          alert('Control and target must be different');
+          return;
+        }
+        if(controlQubit){
+          if (gate.params.includes(controlQubit)) {
+            alert('Duplicate control qubit');
+            return;
+          }
+        }
+        gate.params.push(controlQubit);
+      }
+
+      if (gateType === 'SWAP' ) {
+        // SWAP needs two targets instead of control
+        const swapTarget = prompt(`Enter second target qubit (0-${currentCustomGate.qubits-1}):`);
+        if (swapTarget === null) return;
+
+        const swapQubit = parseInt(swapTarget);
+        if (isNaN(swapQubit) || swapQubit < 0 || swapQubit >= currentCustomGate.qubits || swapQubit === targetQubit) {
+          alert('Invalid swap target qubit');
+          return;
+        }
+
+        gate.params = swapQubit;
+      }
+
+    }
+
+    // Handle rotation gates
+    if (['Rx', 'Ry', 'Rz', 'Phase'].includes(gateType)) {
+      const angle = prompt('Enter angle in degrees:');
+      if (angle === null) return;
+
+      const angleRad = parseFloat(angle) * Math.PI / 180;
+      if (isNaN(angleRad)) {
+        alert('Invalid angle');
+        return;
+      }
+
+      gate.params = angleRad;
+    }
+
+    currentCustomGate.gates.push(gate);
+    console.log(currentCustomGate);
+    updateCircuitGatesList();
+  };
+}
+
+
+
+function updateCircuitGatesList() {
+  circuitGatesList.innerHTML = '';
+  
+  if (currentCustomGate.gates.length === 0) {
+    circuitGatesList.innerHTML = '<div class="small">No gates added to circuit yet.</div>';
+    return;
+  }
+  
+  currentCustomGate.gates.forEach((gate, index) => {
+    const item = document.createElement('div');
+    item.className = 'gate-item';
+    
+    const left = document.createElement('div');
+    left.className = 'gate-left';
+    let desc = `${index + 1}. ${gate.type}`;
+    if (gate.params?.length) {
+      desc += ` (${gate.params.join(',')})`;
+    }
+    if (gate.angle !== undefined) {
+      const deg = (gate.angle * 180 / Math.PI).toFixed(1);
+      desc += `, ${deg}°`;
+    }
+    left.textContent = desc;
+    
+    const right = document.createElement('div');
+    right.className = 'gate-right';
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = 'Remove';
+    removeBtn.className = 'rm';
+    removeBtn.onclick = () => {
+      currentCustomGate.gates.splice(index, 1);
+      updateCircuitGatesList();
+    };
+    
+    right.appendChild(removeBtn);
+    item.appendChild(left);
+    item.appendChild(right);
+    circuitGatesList.appendChild(item);
+  });
+}
+
+// Control-based custom gate setup
+function setupControlBuilder() {
+  controlQubitsList.innerHTML = '';
+  controlTarget.innerHTML = '';
+  
+  // Populate control qubits (checkboxes)
+  for (let i = 0; i < nQ; i++) {
+    const item = document.createElement('div');
+    item.className = 'control-qubit-item';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = `control_${i}`;
+    checkbox.value = i;
+    
+    const label = document.createElement('label');
+    label.htmlFor = `control_${i}`;
+    label.textContent = `q${i}`;
+    
+    item.appendChild(checkbox);
+    item.appendChild(label);
+    controlQubitsList.appendChild(item);
+  }
+  
+  // Populate target qubit
+  for (let i = 0; i < nQ; i++) {
+    const option = document.createElement('option');
+    option.value = i;
+    option.textContent = `q${i}`;
+    controlTarget.appendChild(option);
+  }
+  
+  // Show/hide angle input for rotation gates
+  if (['Rx', 'Ry', 'Rz', 'Phase'].includes(baseGate.value)) {
+    controlAngleDiv.classList.remove('hidden');
+  } else {
+    controlAngleDiv.classList.add('hidden');
+  }
+}
+
+// Matrix validation
+function validateCustomMatrix() {
+  const name = customGateName.value.trim();
+  if (!name) {
+    showValidation(matrixValidation, 'Please enter a gate name', 'error');
+    return false;
+  }
+  
+  const size = parseInt(matrixSize.value);
+  if (isNaN(size) || size < 1 || size > 8) {
+    showValidation(matrixValidation, 'Invalid matrix size', 'error');
+    return false;
+  }
+  if(size===1){
+
+  }
+  const matrix = [];
+  const inputs = matrixInput.querySelectorAll('.matrix-input-cell');
+  
+  if (inputs.length !== size * size) {
+    showValidation(matrixValidation, 'Matrix input not properly initialized', 'error');
+    return false;
+  }
+  
+  for (let i = 0; i < size; i++) {
+    matrix[i] = [];
+    for (let j = 0; j < size; j++) {
+      const input = matrixInput.querySelector(`[data-row="${i}"][data-col="${j}"]`);
+      if (!input) {
+        showValidation(matrixValidation, `Missing input at position (${i},${j})`, 'error');
+        return false;
+      }
+      
+      const value = input.value.trim() || (i === j ? '1' : '0');
+      
+      try {
+        matrix[i][j] = parseComplex(value);
+      } catch (e) {
+        showValidation(matrixValidation, `Invalid complex number at position (${i},${j}): "${value}". Use format like: 1, 0, i, 1+i, 0.5-0.3i`, 'error');
+        return false;
+      }
+    }
+  }
+  
+  // Check if matrix is unitary
+  try {
+    if (!isUnitary(matrix)) {
+      showValidation(matrixValidation, 'Matrix is not unitary (U†U ≠ I). Please ensure the matrix represents a valid quantum gate.', 'error');
+      return false;
+    }
+  } catch (e) {
+    showValidation(matrixValidation, `Error validating matrix: ${e.message}`, 'error');
+    return false;
+  }
+  const target = parseInt(controlTarget.value);
+  // Save custom gate
+  customGates[name] = {
+    type: 'CUSTOM',
+    name: name,
+    customType : 'CUSTOM_MATRIX',
+    matrix: matrix,
+    size: size,
+    params : [target]
+  };
+  console.log(customGates[name]);
+  showValidation(matrixValidation, `Custom gate "${name}" created successfully!`, 'success');
+  return true;
+}
+
+//Circuit validation
+function validateCustomCircuit() {
+  const name = circuitGateName.value.trim();
+  if (!name) {
+    showValidation(circuitValidation, 'Please enter a gate name', 'error');
+    return false;
+  }
+  
+  if (currentCustomGate.gates.length === 0) {
+    showValidation(circuitValidation, 'Please add at least one gate to the circuit', 'error');
+    return false;
+  }
+  const nqubits = circuitQubits.value.trim();
+  let num = prompt("enter the qubits numbers on which these circuit should applied ");
+  let params = num.split(" ").map(Number);
+  // Save custom gate
+  customGates[name] = {
+    type: 'CUSTOM',
+    name: name,
+    customType : 'CUSTOM_CIRCUIT',
+    qubits: currentCustomGate.qubits,
+    subGates: [...currentCustomGate.gates],
+    params : params
+  };
+  console.log(customGates[name]);
+  
+  showValidation(circuitValidation, `Custom circuit "${name}" created successfully!`, 'success');
+  return true;
+}
+
+// Control gate validation
+function validateCustomControl() {
+  const name = controlGateName.value.trim();
+  if (!name) {
+    showValidation(controlValidation, 'Please enter a gate name', 'error');
+    return false;
+  }
+  
+  const selectedControls = Array.from(controlQubitsList.querySelectorAll('input[type="checkbox"]:checked'))
+    .map(cb => parseInt(cb.value));
+  
+  if (selectedControls.length === 0) {
+    showValidation(controlValidation, 'Please select at least one control qubit', 'error');
+    return false;
+  }
+  
+  const target = parseInt(controlTarget1.value);
+  if (selectedControls.includes(target)) {
+    showValidation(controlValidation, 'Target qubit cannot be the same as control qubits', 'error');
+    return false;
+  }
+  
+  const type = baseGate.value;
+
+  let gate = { type , params: []};
+
+  const angle = ['Rx', 'Ry', 'Rz', 'Phase'].includes(type) ? parseFloat(controlAngle.value || 0) * Math.PI / 180 : null;
+  if (['X','Y','Z','H','S','Sdg','T','Tdg','Rx','Ry','Rz','Phase','MEASURE'].includes(type)){
+    gate.params = [target];
+    if (['Rx','Ry','Rz','Phase'].includes(type)){
+      gate.angle = angle; // store radians
+    }
+  }
+  // Save custom gate
+  customGates[name] = {
+    type: 'CUSTOM',
+    name: name,
+    customType : 'CUSTOM_CONTROL',
+    subGates: [gate],
+    params : [...selectedControls, target],
+    angle: angle
+  };
+
+  console.log(customGates[name]);  
+  showValidation(controlValidation, `Custom control gate "${name}" created successfully!`, 'success');
+  return true;
+}
+
+// Helper functions
+function parseComplex(str) {
+  if (!str || typeof str !== 'string') return c(0, 0);
+  
+  str = str.trim();
+  if (str === '0' || str === '') return c(0, 0);
+  if (str === '1') return c(1, 0);
+  if (str === 'i') return c(0, 1);
+  if (str === '-i') return c(0, -1);
+  
+  // Handle simple real numbers
+  if (!str.includes('i') && !str.includes('j')) {
+    const real = parseFloat(str);
+    if (!isNaN(real)) return c(real, 0);
+  }
+  
+  // Parse a+bi format (more flexible)
+  const match = str.match(/^([+-]?\d*\.?\d*)\s*([+-]?\d*\.?\d*)?[ij]?$/);
+  if (!match) {
+    // Try alternative parsing
+    const altMatch = str.match(/^([+-]?\d*\.?\d*)\s*([+-]?\d*\.?\d*)?[ij]$/);
+    if (altMatch) {
+      const real = parseFloat(altMatch[1]) || 0;
+      const imag = parseFloat(altMatch[2]) || 1;
+      return c(real, imag);
+    }
+    throw new Error(`Invalid complex number format: "${str}"`);
+  }
+  
+  const real = parseFloat(match[1]) || 0;
+  const imag = parseFloat(match[2]) || 0;
+  
+  return c(real, imag);
+}
+
+function isUnitary(matrix) {
+  const n = matrix.length;
+  const identity = Array(n).fill().map(() => Array(n).fill(c(0, 0)));
+  for (let i = 0; i < n; i++) identity[i][i] = c(1, 0);
+  
+  // Compute U†U
+  const product = Array(n).fill().map(() => Array(n).fill(c(0, 0)));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      for (let k = 0; k < n; k++) {
+        // Ensure matrix values are valid complex numbers
+        const conjVal = math.conj(matrix[k][i] || c(0, 0));
+        const matrixVal = matrix[k][j] || c(0, 0);
+        const multResult = math.multiply(conjVal, matrixVal);
+        product[i][j] = math.add(product[i][j] || c(0, 0), multResult);
+      }
+    }
+  }
+  
+  // Check if product equals identity (within tolerance)
+  const tolerance = 1e-10;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const diff = math.subtract(product[i][j] || c(0, 0), identity[i][j] || c(0, 0));
+      if (math.abs(diff) > tolerance) return false;
+    }
+  }
+  return true;
+}
+
+function showValidation(element, message, type) {
+  element.innerHTML = `<div class="validation-message validation-${type}">${message}</div>`;
+}
+
+
+// Event listeners for custom gates
+matrixSize.addEventListener('change', setupMatrixInput);
+validateMatrix.addEventListener('click', validateCustomMatrix);
+circuitQubits.addEventListener('change', setupCircuitBuilder);
+validateCircuit.addEventListener('click', validateCustomCircuit);
+baseGate.addEventListener('change', () => {
+  if (['Rx', 'Ry', 'Rz', 'Phase'].includes(baseGate.value)) {
+    controlAngleDiv.classList.remove('hidden');
+  } else {
+    controlAngleDiv.classList.add('hidden');
+  }
+});
+validateControl.addEventListener('click', validateCustomControl);
+
 // ---------- Interactivity Enhancements ----------
 function toggleTheme(){
   const isDark = document.body.classList.toggle('dark');
