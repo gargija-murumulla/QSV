@@ -1254,29 +1254,31 @@ function applyCustomMatrixGate(psi, n, customGate, target) {
     return applySingleQubitGate(psi, n, target, matrix);
   }
 }
+
 function applyCustomCircuitGate(psi, n, customGate) {
   let result = psi.slice();
   
   // Apply each gate in the circuit
   for (const gate of customGate.subGates) {
+    const mappedParams = gate.params.map(idx => customGate.params[idx]);
     if (gate.type in GATES) {
-      result = applySingleQubitGate(result, n, gate.params[0], GATES[gate.type]);
+      result = applySingleQubitGate(result, n, mappedParams[0], GATES[gate.type]);
     } else if (gate.type === 'Rx') {
-      result = applySingleQubitGate(result, n, gate.params[0], Rx(gate.angle));
+      result = applySingleQubitGate(result, n, mappedParams[0], Rx(gate.angle));
     } else if (gate.type === 'Ry') {
-      result = applySingleQubitGate(result, n, gate.params[0], Ry(gate.angle));
+      result = applySingleQubitGate(result, n, mappedParams[0], Ry(gate.angle));
     } else if (gate.type === 'Rz') {
-      result = applySingleQubitGate(result, n, gate.params[0], Rz(gate.angle));
+      result = applySingleQubitGate(result, n, mappedParams[0], Rz(gate.angle));
     } else if (gate.type === 'Phase') {
-      result = applySingleQubitGate(result, n, gate.params[0], Phase(gate.angle));
+      result = applySingleQubitGate(result, n, mappedParams[0], Phase(gate.angle));
     } else if (gate.type === 'CNOT') {
-      result = applyCNOT(result, n, gate.params[1], gate.params[0]);
+      result = applyCNOT(result, n, mappedParams[1], mappedParams[0]);
     } else if (gate.type === 'CZ') {
-      result = applyCZ(result, n, gate.params[1], gate.params[0]);
+      result = applyCZ(result, n, mappedParams[1], mappedParams[0]);
     } else if (gate.type === 'SWAP') {
-      result = applySWAP(result, n, gate.params[1], gate.params[0]);
+      result = applySWAP(result, n, mappedParams[1], mappedParams[0]);
     }else if (gate.type === 'CCNOT') {
-      result = applyCCNOT(result, n, gate.params[1], gate.params[0]);
+      result = applyCCNOT(result, n, mappedParams[1], mappedParams[0]);
     }
   }
   
@@ -1707,14 +1709,212 @@ function displayResults(psi, rho, reducedList){
     else{
       s += `<div style ="overflow:auto; max-width:100%; max-height: 400px;">${formatMatrixHTML(mat)}</div>`;
     }
-    s += "</div>";
   }
-
+  const doc = analyzeAllPairwiseEntanglement(rho, Array.from({ length: nQ }, () => 2) );
+  console.log(doc);
+  const combinedDescription = doc.qubits
+    .map(q => q.description)   // extract all descriptions
+    .join(" "); 
+  s += `<div style="font-size: 18px; color: #333; font-family: Arial, sans-serif;"> Summary:<br>`;
+  s += doc.summary;
+  s += `<br>Entanglement:<br>`;
+  s += combinedDescription;
+  s += "</div></div>";
   resultsDiv.innerHTML = s;
   if(window.MathJax){
     MathJax.typesetPromise();
   }
 }
+
+// ---------- Complex number utilities ----------
+function complex(a, b = 0) { return { re: a, im: b }; }
+function cadd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
+function csub(a, b) { return { re: a.re - b.re, im: a.im - b.im }; }
+function cmul(a, b) {
+  return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re };
+}
+function cconj(a) { return { re: a.re, im: -a.im }; }
+function cabs2(a) { return a.re * a.re + a.im * a.im; }
+
+// ---------- Matrix utilities ----------
+function zeros(n, m) {
+  return Array.from({ length: n }, () => Array.from({ length: m }, () => complex(0, 0)));
+}
+
+function dagger(M) {
+  const n = M.length, m = M[0].length;
+  const res = zeros(m, n);
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < m; j++)
+      res[j][i] = cconj(M[i][j]);
+  return res;
+}
+
+function mmul(A, B) {
+  const n = A.length, m = B[0].length, p = B.length;
+  const C = zeros(n, m);
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < m; j++)
+      for (let k = 0; k < p; k++)
+        C[i][j] = cadd(C[i][j], cmul(A[i][k], B[k][j]));
+  return C;
+}
+
+function tensor(A, B) {
+  const n = A.length, m = A[0].length, p = B.length, q = B[0].length;
+  const T = zeros(n * p, m * q);
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < m; j++)
+      for (let k = 0; k < p; k++)
+        for (let l = 0; l < q; l++)
+          T[i * p + k][j * q + l] = cmul(A[i][j], B[k][l]);
+  return T;
+}
+
+// ---------- Pauli Y for concurrence ----------
+const sy = [[complex(0, 0), complex(0, -1)], [complex(0, 1), complex(0, 0)]];
+
+// ---------- Partial trace ----------
+function partialTrace1(rho, keep, dims) {
+  const n = dims.length;
+  const traceOut = dims.map((_, i) => i).filter(i => !keep.includes(i));
+  const keepDim = keep.map(i => dims[i]).reduce((a, b) => a * b, 1);
+  const traceDim = traceOut.map(i => dims[i]).reduce((a, b) => a * b, 1);
+
+  const out = zeros(keepDim, keepDim);
+
+  // helper: convert index to binary array
+  function idxToBits(idx) {
+    const bits = [];
+    for (let i = n - 1; i >= 0; i--) bits.push((idx >> i) & 1); // MSB first
+    return bits;
+  }
+
+  // helper: convert bits to index
+  function bitsToIdx(bits) {
+    return bits.reduce((acc, b) => (acc << 1) | b, 0);
+  }
+
+  for (let i = 0; i < Math.pow(2, n); i++) {
+    const iBits = idxToBits(i);
+    const iKeepBits = keep.map(k => iBits[k]);
+    const iKeepIdx = bitsToIdx(iKeepBits);
+
+    for (let j = 0; j < Math.pow(2, n); j++) {
+      const jBits = idxToBits(j);
+      const jKeepBits = keep.map(k => jBits[k]);
+      const jKeepIdx = bitsToIdx(jKeepBits);
+
+      const iTraceBits = traceOut.map(k => iBits[k]);
+      const jTraceBits = traceOut.map(k => jBits[k]);
+
+      if (iTraceBits.join() === jTraceBits.join()) {
+        out[iKeepIdx][jKeepIdx] = cadd(out[iKeepIdx][jKeepIdx], rho[i][j]);
+      }
+    }
+  }
+  return out;
+}
+
+// ---------- Concurrence (for 2 qubits) ----------
+function concurrence(rho) {
+  const Y = tensor(sy, sy);
+  const rhoStar = dagger(rho);
+  const R = mmul(mmul(mmul(rho, Y), rhoStar), Y); 
+  const Rmat = math.matrix(R.map(row => row.map(x => math.complex(x.re, x.im))));
+  const eigvals = math.eigs(Rmat).values.toArray()
+  .map(v => Math.sqrt(Math.max(0, math.re(v))))
+  .sort((a, b) => b - a);
+
+  return Math.max(0, eigvals[0]-eigvals[1]-eigvals[2]-eigvals[3]);
+}
+// ---------- Negativity ----------
+function partialTranspose(rho, sys) {
+  const res = zeros(4, 4);
+  for (let i = 0; i < 2; i++)
+    for (let j = 0; j < 2; j++)
+      for (let k = 0; k < 2; k++)
+        for (let l = 0; l < 2; l++) {
+          const a = i * 2 + j;
+          const b = k * 2 + l;
+          const aT = (sys === 0 ? k : i) * 2 + (sys === 0 ? j : l);
+          const bT = (sys === 0 ? i : k) * 2 + (sys === 0 ? l : j);
+          res[aT][bT] = rho[a][b];
+        }
+  return res;
+}
+
+function negativity(rho) {
+  // Compute the partial transpose (assume partialTranspose(rho) returns 4x4 array)
+  const rhoPT = partialTranspose(rho);
+
+  // Ensure all entries are proper math.Complex
+  const rhoMat = math.matrix(rhoPT.map(row => row.map(x => math.complex(x.re ?? x, x.im ?? 0))));
+
+  // Compute eigenvalues
+  const eigvals = math.eigs(rhoMat).values.toArray().map(v => math.re(v));
+
+  // Sum absolute values of negative eigenvalues
+  const negVals = eigvals.filter(v => v < -1e-12);
+  return -negVals.reduce((a, b) => a + b, 0);
+}
+
+
+// ---------- Main helper ----------
+function analyzeAllPairwiseEntanglement(rhoFull, dims) {
+  const numQubits = dims.length;
+  const entangledPairs = Array.from({ length: numQubits }, () => new Set());
+  const pairData = {}; // store concurrence/negativity for each pair
+  console.log(dims);
+  // Check pairwise entanglement
+  for (let i = 0; i < numQubits; i++) {
+    for (let j = i + 1; j < numQubits; j++) {
+      const rho2 = partialTrace1(rhoFull, [i, j], dims);
+      const c = concurrence(rho2);
+      const n = negativity(rho2);
+
+      pairData[`Q${i}-${j}`] = { concurrence: c, negativity: n };
+
+      if (c > 1e-6 || n > 1e-6) {
+        entangledPairs[i].add(j);
+        entangledPairs[j].add(i);
+      }
+    }
+  }
+
+  // Check if system is fully entangled
+  const allEntangled = entangledPairs.every(set => set.size === numQubits - 1);
+
+  // Build doc object
+  const doc = {
+    summary: allEntangled
+      ? "All qubits are entangled together forming a fully entangled system."
+      : "System contains partial or pairwise entanglement.",
+    qubits: [],
+    pairwise: pairData,
+  };
+
+  // Fill per-qubit details
+  for (let i = 0; i < numQubits; i++) {
+    if (entangledPairs[i].size > 0) {
+      const partners = Array.from(entangledPairs[i]);
+      doc.qubits.push({
+        qubit: i,
+        entangledWith: partners,
+        description: `Qubit ${i} is entangled with ${partners.map(q => `Qubit ${q}`).join(", ")}.`,
+      });
+    } else {
+      doc.qubits.push({
+        qubit: i,
+        entangledWith: [],
+        description: `Qubit ${i} is not entangled with any other qubit.`,
+      });
+    }
+  }
+
+  return doc;
+}
+
 function toComplex(c) {
   if (c && typeof c === "object" && "real" in c && "imag" in c) {
     return math.complex(c.real, c.imag);
