@@ -71,8 +71,8 @@
             <option value="CUSTOM_CIRCUIT">Custom Circuit Gate</option>
             <option value="CUSTOM_CONTROL">Custom Control Gate</option>
           </optgroup>
-          
         </select>
+        <div id="gateHelp" class="small"></div>
 
         <!-- Single-qubit target -->
         <div id="singleTargetDiv">
@@ -194,8 +194,19 @@
     <hr />
   
     <canvas id="stateBarChart" class = "hidden"></canvas>
+    <div id="resultsGuide" class="small">
+      <strong>&#128161; How to read the results:</strong>
+      <ul>
+        <li>Final state amplitudes show the complex coefficients for each basis state \(|q_0 \dots q_{n-1}\rangle\).</li>
+        <li>The full density matrix ρ captures both probabilities and quantum coherence, while each reduced ρ (per qubit)
+          feeds the Bloch spheres, entropy and purity.</li>
+        <li>The histogram and backend results show classical measurement
+          statistics, and the entanglement summary explains which qubits are entangled.</li>
+      </ul>
+    </div>
   <div id="results">
   </div>
+
   <div id="backendResults" style="white-space: pre-wrap; margin-top: 20px; border: 1px solid #ccc; padding: 10px;"></div>
   
   <div id="loading" class="loading-spinner" style="display:none;"></div>
