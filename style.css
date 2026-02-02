@@ -3,11 +3,13 @@ body {
   background: #e4effa;
   margin: 0;
   padding: 20px;
-  color: #222;
+  color: #1a191b;
   transition: background 0.3s ease, color 0.3s ease;
 }
+
+
 body.dark {
-  background: #517a96fa;
+  background: #535de9fa;
   color: #000000;
 }
 .theme-toggle {
@@ -19,6 +21,7 @@ body.dark {
   padding: 6px 10px;
   cursor: pointer;
 }
+
 body.dark .theme-toggle { border-color: #949497; }
 .main{
   display:flex;
@@ -62,6 +65,32 @@ h1 {
   border-color:#4f6ef7;
   box-shadow: 0 0 0 3px rgba(79,110,247,0.2);
 }
+#resultsGuide {
+  font-size: 16px;
+  margin-top: 20px;
+  padding: 10px;
+  background-color: #d9ecfa;
+  border-radius: 8px;
+  border: 1px solid #94b3d7;
+  color: #000000;
+}
+#resultsGuide ul {
+  font-size: 16px;
+  margin-left: 20px;
+  padding-left: 20px;
+  background-color: #ddeffc;
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid #94b3d7;
+  color: #000000;
+  list-style-type: disc;
+}
+body.dark #resultsGuide ul {
+  background-color: #4b77b9;
+  border-color: #264069;
+  color: #ffffff;
+  list-style-type: disc;
+}
 /* Dark mode for inputs/selects */
 body.dark .controls input, body.dark .controls select {
   background:#9ab6e2;
@@ -104,6 +133,7 @@ body.dark #gatesList { background:#7891c0; border-color:#8290a7; }
   overflow-x: auto;     /* enable horizontal scrolling */
   overflow-y: auto;     /* enable vertical scroll as well */
   white-space: nowrap;  /* prevent wrapping */
+  max-height: 500px;    /* constrain height so vertical scrollbar appears */
   background: #f5f9fc;
   border: 1px solid #ccc;
   border-radius: 10px;
@@ -113,6 +143,22 @@ body.dark #quantumCircuit { background:#7891c0; border: color #8290a7; }
 #quantumCircuit svg {
   display: inline-block; /* allow wide SVGs to scroll */
 }
+
+.tour-banner {
+  margin: 10px auto 0;
+  padding: 10px 14px;
+  max-width: 980px;
+  border-radius: 8px;
+  background: #c6e7ff;
+  border: 1px solid #b6d8ff;
+  font-size: 14px;
+}
+
+body.dark .tour-banner {
+  background: #4b77b9;
+  border-color: #264069;
+}
+
 
 .result-block { background:#f5f9fc; padding:10px; border-radius:8px; border:1px solid #eef2f6; }
 body.dark .result-block { background: #7891c0; border-color:#8290a7; }
@@ -342,7 +388,7 @@ body.dark .close-btn {
 }
 
 .btn-secondary:hover {
-  background: #5a6268;
+  background: #c6e6ff;
 }
 
 .custom-gate-item {
