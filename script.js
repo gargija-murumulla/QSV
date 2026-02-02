@@ -16,6 +16,30 @@ const GATES = {
   Tdg: [[c(1,0), c(0,0)], [c(0,0), math.exp(math.multiply(c(0,-1), Math.PI/4))]],
 };
 
+// Short descriptions for each gate to drive hover/help text
+const GATE_DESCRIPTIONS = {
+  X: "X (Pauli-X): quantum NOT gate, flips |0⟩ and |1⟩.",
+  Y: "Y (Pauli-Y): rotation combining bit and phase flip.",
+  Z: "Z (Pauli-Z): phase flip, maps |1⟩ → -|1⟩.",
+  H: "H (Hadamard): creates superposition, turning |0⟩ into (|0⟩+|1⟩)/√2.",
+  S: "S gate: phase gate with phase π/2 on |1⟩.",
+  Sdg: "S† gate: inverse of S, phase -π/2 on |1⟩.",
+  T: "T gate: π/4 phase on |1⟩, useful for precise rotations.",
+  Tdg: "T† gate: inverse of T, phase -π/4 on |1⟩.",
+  MEASURE: "Measure: collapses the chosen qubit to classical 0 or 1.",
+  Rx: "Rx(θ): rotation around the X-axis of the Bloch sphere by angle θ.",
+  Ry: "Ry(θ): rotation around the Y-axis of the Bloch sphere by angle θ.",
+  Rz: "Rz(θ): rotation around the Z-axis of the Bloch sphere by angle θ.",
+  Phase: "Phase(φ): adds a controllable phase φ to the |1⟩ component.",
+  CNOT: "CNOT: flips the target qubit if the control qubit is |1⟩.",
+  CZ: "CZ: adds a -1 phase when both control and target are |1⟩.",
+  SWAP: "SWAP: exchanges the states of two qubits.",
+  CCNOT: "CCNOT / Toffoli: flips target only when both controls are |1⟩.",
+  CUSTOM_MATRIX: "Custom Matrix: apply your own user-defined unitary.",
+  CUSTOM_CIRCUIT: "Custom Circuit: reuse a small circuit as a single gate.",
+  CUSTOM_CONTROL: "Custom Control: make your own controlled version of a base gate."
+};
+
 // Parameterized single-qubit gates
 function Rx(theta){
   const th = theta/2;
@@ -51,6 +75,7 @@ const basisInputWrap = document.getElementById('basisInputWrap');
 const basisInput = document.getElementById('basisInput');
 
 const gateType = document.getElementById('gateType');
+const gateHelp = document.getElementById('gateHelp');
 const singleTargetDiv = document.getElementById('singleTargetDiv');
 const targetQ = document.getElementById('targetQ');
 
@@ -113,6 +138,16 @@ const themeToggleBtn = document.getElementById('themeToggle');
 const resultsDiv = document.getElementById('results');
 const blochSpheresDiv = document.getElementById('blochSpheres');
 const container = document.getElementById("quantumCircuit");
+
+// Helper to update the small help text and native tooltip for the selected gate
+function updateGateHelp(type) {
+  if (!gateType) return;
+  const desc = GATE_DESCRIPTIONS[type] || "";
+  gateType.title = desc || "Choose a quantum gate to add to the circuit.";
+  if (gateHelp) {
+    gateHelp.textContent = desc ? `Selected gate: ${desc}` : "";
+  }
+}
   
 // ---------- App state ----------
 let nQ = 2;
@@ -505,6 +540,7 @@ function getInitStates(initIndex,nQ) {
 
  function onGateTypeChange(){
   const type = gateType.value;
+  updateGateHelp(type);
   // hide all
   singleTargetDiv.classList.add('hidden');
   cnotDiv.classList.add('hidden');
@@ -1350,58 +1386,6 @@ function applyCustomControlGate(psi, n, customGate) {
 }
 
 
-// function applyCustomControlGate(psi, n, customGate) {
-//   const { baseGate, controls, target, angle } = customGate;
-//   const result = Array(psi.length).fill(null).map(() => c(0,0));
-
-//   // Choose the gate matrix
-//   let gateMatrix;
-//   if (baseGate === 'X') gateMatrix = [[c(0,0), c(1,0)], [c(1,0), c(0,0)]];
-//   else if (baseGate === 'Y') gateMatrix = [[c(0,0), c(0,-1)], [c(0,1), c(0,0)]];
-//   else if (baseGate === 'Z') gateMatrix = [[c(1,0), c(0,0)], [c(0,0), c(-1,0)]];
-//   else if (baseGate === 'H') {
-//     const s2 = 1/Math.sqrt(2);
-//     gateMatrix = [[c(s2,0), c(s2,0)], [c(s2,0), c(-s2,0)]];
-//   } 
-//   else if (baseGate === 'Rx') gateMatrix = Rx(angle || 0);
-//   else if (baseGate === 'Ry') gateMatrix = Ry(angle || 0);
-//   else if (baseGate === 'Rz') gateMatrix = Rz(angle || 0);
-//   else if (baseGate === 'Phase') gateMatrix = Phase(angle || 0);
-//   else return psi; // unknown gate
-
-//   // Loop over all basis states
-//   for (let i = 0; i < psi.length; i++) {
-//     const bin = i.toString(2).padStart(n, '0');
-
-//     // Check if controls are all 1
-//     const allControlsOne = controls.every(c => bin[c] === '1');
-//     if (!allControlsOne) {
-//       // If controls not satisfied → copy amplitude
-//       result[i] = math.add(result[i], psi[i]);
-//       continue;
-//     }
-
-//     // Find partner index: same as i except target flipped
-//     const flippedBin = bin.substring(0,target) + (bin[target] === '0' ? '1' : '0') + bin.substring(target+1);
-//     const j = parseInt(flippedBin, 2);
-
-//     // Only handle each pair once (when target=0)
-//     if (bin[target] === '0') {
-//       const a0 = psi[i] || c(0,0);
-//       const a1 = psi[j] || c(0,0);
-
-//       // Apply 2x2 gate matrix
-//       const new0 = math.add(math.multiply(gateMatrix[0][0], a0), math.multiply(gateMatrix[0][1], a1));
-//       const new1 = math.add(math.multiply(gateMatrix[1][0], a0), math.multiply(gateMatrix[1][1], a1));
-
-//       result[i] = math.add(result[i], new0);
-//       result[j] = math.add(result[j], new1);
-//     }
-//   }
-
-//   return result;
-// }
-
 function applyMultiQubitGate(psi, n, matrix, targets) {
   const k = targets.length;  // number of target qubits
   const dim = psi.length;    // = 2^n
@@ -1453,21 +1437,6 @@ function applyMultiQubitGate(psi, n, matrix, targets) {
 
   return result;
 }
-
-// function applyMultiQubitGate(psi, n, matrix, targets) {
-//   // This is a simplified implementation for multi-qubit gates
-//   // In a full implementation, you'd need to handle the tensor product properly
-//   const dim = psi.length;
-//   const out = Array(dim).fill(0).map(() => c(0, 0));
-  
-//   // For now, just apply as single qubit to first target
-//   if (targets.length > 0) {
-//     return applySingleQubitGate(psi, n, targets[0], matrix);
-//   }
-  
-//   return out;
-// }
-
 // ---------- Density matrix & Bloch sphere ----------
 
 
@@ -1715,11 +1684,15 @@ function displayResults(psi, rho, reducedList){
   const combinedDescription = doc.qubits
     .map(q => q.description)   // extract all descriptions
     .join(" "); 
-  s += `<div style="font-size: 18px; color: #333; font-family: Arial, sans-serif;"> Summary:<br>`;
+  s += `<div style="font-size: 18px; color: #333; font-family: Arial, sans-serif;"> <strong>&#10024; Summary:</strong><br>`;
   s += doc.summary;
-  s += `<br>Entanglement:<br>`;
-  s += combinedDescription;
-  s += "</div></div>";
+  s += `<br><strong>&#10024; Entanglement:</strong><br>`;
+
+  for (let i = 0; i < doc.qubits.length; i++) {
+    s += doc.qubits[i].description;
+    s += `<br>`;
+  }
+  s += "</div>";
   resultsDiv.innerHTML = s;
   if(window.MathJax){
     MathJax.typesetPromise();
@@ -1889,7 +1862,7 @@ function analyzeAllPairwiseEntanglement(rhoFull, dims) {
   const doc = {
     summary: allEntangled
       ? "All qubits are entangled together forming a fully entangled system."
-      : "System contains partial or pairwise entanglement.",
+      : "System may contain partial or pairwise entanglement.",
     qubits: [],
     pairwise: pairData,
   };
@@ -2176,7 +2149,7 @@ document.getElementById("cRun").addEventListener("click", async () => {
       });
       const data = await res.json();
       document.getElementById("backendResults").textContent =
-        "Backend Counts:\n" + JSON.stringify(data.counts, null, 2) +
+        "Backend results: shows the counts for each classical bitstring outcome and the QASM code for the circuit in q n-1,q n-2,...q0 qorder .\nBackend Counts:\n" + JSON.stringify(data.counts, null, 2) +
         "\n\nQASM:\n" + data.qasm;
       drawHistogram(data.counts);
     }
@@ -2727,6 +2700,63 @@ function refreshPlotBackgrounds(){
   });
 }
 
+// One-off hover hints and first-time tour
+function initHoverHints(){
+  if (resultsDiv){
+    resultsDiv.title = "Results panel: shows amplitudes, density matrices, reduced states, entropies and entanglement summary. Scroll vertically to see all sections.";
+  }
+  if (blochSpheresDiv){
+    blochSpheresDiv.title = "Each card shows one qubit: Bloch vector, entropy, purity and measurement probabilities.";
+  }
+  if (container){
+    container.title = "Circuit diagram: each row is a qubit, gates are applied left-to-right, and measurements send results to classical registers at the bottom.";
+  }
+  const qsphere = document.getElementById('qsphereDiv');
+  if (qsphere){
+    qsphere.title = "Q-sphere: dots represent basis states; size is probability and color encodes phase.";
+  }
+  const hist = document.getElementById('histogram');
+  if (hist){
+    hist.title = "Measurement histogram: backend counts for each classical bitstring outcome.";
+  }
+  
+  
+}
+
+function initFirstTimeTour(){
+  try {
+    const seen = localStorage.getItem('qsv_tour_seen');
+    if (seen) {
+      initHoverHints();
+      return;
+    }
+    localStorage.setItem('qsv_tour_seen', '1');
+    const banner = document.createElement('div');
+    banner.id = 'tourBanner';
+    banner.className = 'tour-banner';
+    banner.innerHTML = "<strong>Welcome!</strong> Hover over the circuit, gate selector and result panels to see short explanations. This hint disappears after you start using the tool.";
+    const main = document.querySelector('.main');
+    if (main && main.parentNode){
+      main.parentNode.insertBefore(banner, main);
+    } else {
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+    const hide = () => {
+      if (banner && banner.parentNode){
+        banner.parentNode.removeChild(banner);
+      }
+    };
+    // Hide the banner on first interaction
+    btnSet.addEventListener('click', hide, { once:true });
+    btnAddGate.addEventListener('click', hide, { once:true });
+    document.addEventListener('keydown', hide, { once:true });
+  } catch (e) {
+    // localStorage or DOM might fail; still ensure hover hints exist
+  } finally {
+    initHoverHints();
+  }
+}
+
 function setControlsDisabled(disabled){
   const controls = document.querySelectorAll('button, input, select');
   controls.forEach(el => {
@@ -2832,7 +2862,5 @@ window.addEventListener('keydown', (e)=>{
     else { btnRun.click(); }
   }
 });
-   
-
-
-
+// Initialize first-time tour and hover hints once the script has loaded
+initFirstTimeTour();
