@@ -158,7 +158,7 @@ def reconstruct_single_qubit_rho_experiments(base_qc: QuantumCircuit,
     backend = _ensure_backend(backend)
 
     # Build the experiment for tomography on a single qubit (subsystem)
-    tomo = StateTomography(base_qc, [target])
+    tomo = StateTomography(base_qc, measuremnt_qubits[target])
 
     # Run experiment — ExperimentData object is returned
     exp_data = tomo.run(backend, shots=shots).block_for_results()
