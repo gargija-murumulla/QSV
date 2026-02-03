@@ -2142,7 +2142,7 @@ document.getElementById("cRun").addEventListener("click", async () => {
       };
 
       console.log("👉 Sending to backend:", payload);
-      const res = await fetch("https://qsv-3xax.onrender.com/run", {
+      const res = await fetch("https://quantum-h16r.onrender.com/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -2169,7 +2169,7 @@ document.getElementById("cRun").addEventListener("click", async () => {
       };
   
       console.log("👉 Sending to backend:", payload);
-      const res = await fetch("https://qsv-3xax.onrender.com/run", {
+      const res = await fetch("https://quantum-h16r.onrender.com/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -2790,7 +2790,7 @@ async function backendRunCore(){
   const nQ_local = nQ;
   if(nQ_local<6){
     const payload = { numQubits: nQ_local, gates: gateSequence, initialStates: initStates };
-    const res = await fetch("https://qsv-3xax.onrender.com/run", {
+    const res = await fetch("https://quantum-h16r.onrender.com/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -2809,7 +2809,7 @@ async function backendRunCore(){
       return;
     }
     const payload = { numQubits: nQ_local, gates: gateSequence, initialStates: initStates, targetQubit };
-    const res = await fetch("https://qsv-3xax.onrender.com/run", {
+    const res = await fetch("https://quantum-h16r.onrender.com/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -2864,3 +2864,4 @@ window.addEventListener('keydown', (e)=>{
 });
 // Initialize first-time tour and hover hints once the script has loaded
 initFirstTimeTour();
+
