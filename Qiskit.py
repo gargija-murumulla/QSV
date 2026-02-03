@@ -161,7 +161,7 @@ def reconstruct_single_qubit_rho_experiments(base_qc: QuantumCircuit,
     tomo = StateTomography(base_qc, [target])
 
     # Run experiment — ExperimentData object is returned
-    exp_data = tomo.run(backend, shots=shots)
+    exp_data = tomo.run(backend, shots=shots).block_for_results()
 
     # Try to extract a density matrix from the experiment analysis results.
     # Different versions of qiskit-experiments expose results differently; try a few reasonable access patterns.
